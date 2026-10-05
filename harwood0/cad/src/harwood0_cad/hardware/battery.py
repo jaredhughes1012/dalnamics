@@ -8,6 +8,7 @@ from harwood0_cad.shapes import box, cylinder
 LIPO_L = 105.0
 LIPO_W = 35.0
 LIPO_H = 25.0
+LIPO_MASS = 185.0  # grams
 
 
 def lipo_3s() -> Part:

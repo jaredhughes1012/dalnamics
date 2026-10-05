@@ -11,6 +11,8 @@ dependencies = [
 harwood0-cad = "harwood0_cad.export:main"
 harwood0-render = "harwood0_cad.render:main"
 harwood0-show = "harwood0_cad.show:main"
+harwood0-stability = "harwood0_cad.stability:main"
+harwood0-cables = "harwood0_cad.cables:main"
 
 [dependency-groups]
 dev = [

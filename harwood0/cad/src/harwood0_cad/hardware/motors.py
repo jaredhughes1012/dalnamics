@@ -1,4 +1,6 @@
-"""Drive gearmotor, pan stepper, and tilt servo."""
+"""Drive gearmotors, track stepper, and arm servos."""
+
+import math
 
 from build123d import Part, Rot
 
@@ -17,6 +19,7 @@ GA25_SHAFT_FLAT = 3.5
 GA25_SHAFT_L = 10.0  # beyond the boss
 GA25_FACE_HOLE_SPACING = 17.0  # 2x M3 tapped holes either side of the shaft, along X
 GA25_TERMINAL_L = 2.0
+GA25_MASS = 96.0  # grams
 
 
 def ga25_motor() -> Part:
@@ -32,7 +35,7 @@ def ga25_motor() -> Part:
     return body
 
 
-# 28BYJ-48 5 V geared stepper (BOM A1). The shaft is offset from the body centre.
+# 28BYJ-48 5 V geared stepper (BOM A1), driving the track. The shaft is offset from the body centre.
 BYJ_BODY_D = 28.0
 BYJ_BODY_H = 19.0
 BYJ_SHAFT_OFFSET = 8.0  # body centre sits at -X of the shaft
@@ -48,6 +51,7 @@ BYJ_SHAFT_L = 8.5  # beyond the boss
 BYJ_FLAT_L = 6.0  # flats run this far down from the shaft tip
 BYJ_COVER_W = 14.6
 BYJ_COVER_REACH = 17.0  # wire cover's reach from the body centre, on the -X side
+BYJ_MASS = 37.0
 
 
 def stepper_28byj48(shaft_angle: float = 0.0) -> Part:
@@ -76,7 +80,7 @@ def stepper_28byj48(shaft_angle: float = 0.0) -> Part:
     return body + Rot(0, 0, shaft_angle) * shaft
 
 
-# MG90S metal-gear micro servo (BOM R3/A5).
+# MG90S metal-gear micro servo (BOM R3/A5): elbow and gripper.
 MG90S_BODY_L = 22.8
 MG90S_BODY_W = 12.2
 MG90S_BODY_H = 22.5  # base to top face, excluding the gear boss
@@ -90,6 +94,7 @@ MG90S_GEAR_BOSS_D = 11.8
 MG90S_GEAR_BOSS_H = 4.0
 MG90S_SPLINE_D = 4.8
 MG90S_SPLINE_H = 3.0
+MG90S_MASS = 13.4
 
 # Double-arm horn supplied with the servo, seated on the spline.
 MG90S_HORN_HUB_D = 7.0
@@ -117,13 +122,80 @@ def mg90s() -> Part:
     return body
 
 
-def mg90s_horn() -> Part:
-    """In the servo's frame (see mg90s): hub on the spline, arms along Y."""
+def mg90s_horn(length: float = MG90S_HORN_LENGTH) -> Part:
+    """In the servo's frame (see mg90s): hub on the spline, arms along Y.
+
+    `length` is tip to tip; pass less than MG90S_HORN_LENGTH for a horn with its arms trimmed.
+    """
     top = MG90S_HORN_TOP
     horn = cylinder(MG90S_HORN_HUB_D / 2, (MG90S_GEAR_BOSS_H, top))
-    half = MG90S_HORN_LENGTH / 2 - MG90S_HORN_ARM_W / 2
+    half = length / 2 - MG90S_HORN_ARM_W / 2
     arm_z = (top - MG90S_HORN_ARM_T, top)
     horn += box((-MG90S_HORN_ARM_W / 2, MG90S_HORN_ARM_W / 2), (-half, half), arm_z)
     for y in (-half, half):
         horn += cylinder(MG90S_HORN_ARM_W / 2, arm_z, at=(0, y))
+    return horn
+
+
+# Standard-size servos: DS3218 (shoulder) and MG996R (yaw) share this outline.
+STD_SERVO_BODY_L = 40.0
+STD_SERVO_BODY_W = 20.0
+STD_SERVO_BODY_H = 37.0  # base to top face, excluding the gear boss
+STD_SERVO_SHAFT_OFFSET = 10.0  # body centre sits at -X of the output shaft
+STD_SERVO_TAB_SPAN = 54.0
+STD_SERVO_TAB_T = 2.5
+STD_SERVO_TAB_TOP = -7.5  # tab top face, below the body top face
+STD_SERVO_TAB_HOLES = (49.0, 10.0)  # hole spacing along the body, across it
+STD_SERVO_TAB_HOLE_D = 4.2
+STD_SERVO_GEAR_BOSS_D = 13.0
+STD_SERVO_GEAR_BOSS_H = 3.5
+STD_SERVO_SPLINE_D = 6.0
+STD_SERVO_SPLINE_H = 4.0
+DS3218_MASS = 60.0
+MG996R_MASS = 55.0
+
+# Round disc horn, screwed to whatever it drives through four holes on a circle.
+STD_HORN_D = 25.0
+STD_HORN_T = 2.5
+STD_HORN_HUB_D = 10.0
+STD_HORN_TOP = STD_SERVO_GEAR_BOSS_H + 5.0  # horn outer face above the body top face
+STD_HORN_SCREW_R = 7.5
+
+
+def _standard_servo() -> Part:
+    cx = -STD_SERVO_SHAFT_OFFSET
+    hl, hw = STD_SERVO_BODY_L / 2, STD_SERVO_BODY_W / 2
+    body = box((cx - hl, cx + hl), (-hw, hw), (-STD_SERVO_BODY_H, 0))
+    tab_z = (STD_SERVO_TAB_TOP - STD_SERVO_TAB_T, STD_SERVO_TAB_TOP)
+    tabs = box((cx - STD_SERVO_TAB_SPAN / 2, cx + STD_SERVO_TAB_SPAN / 2), (-hw, hw), tab_z)
+    along, across = STD_SERVO_TAB_HOLES
+    for x in (-along / 2, along / 2):
+        for y in (-across / 2, across / 2):
+            tabs -= cylinder(STD_SERVO_TAB_HOLE_D / 2, (tab_z[0] - 1, tab_z[1] + 1), at=(cx + x, y))
+    body += tabs
+    body += cylinder(STD_SERVO_GEAR_BOSS_D / 2, (0, STD_SERVO_GEAR_BOSS_H))
+    top = STD_SERVO_GEAR_BOSS_H + STD_SERVO_SPLINE_H
+    body += cylinder(STD_SERVO_SPLINE_D / 2, (STD_SERVO_GEAR_BOSS_H, top))
+    return body
+
+
+def ds3218() -> Part:
+    """DS3218 20 kg-cm servo (BOM A3). Same frame as mg90s: shaft along +Z from the body top face."""
+    return _standard_servo()
+
+
+def mg996r() -> Part:
+    """MG996R ~11 kg-cm servo (BOM A4). Same frame as mg90s."""
+    return _standard_servo()
+
+
+def standard_horn() -> Part:
+    """Disc horn in its servo's frame: hub on the spline, disc at the outer face."""
+    top = STD_HORN_TOP
+    horn = cylinder(STD_HORN_HUB_D / 2, (STD_SERVO_GEAR_BOSS_H, top))
+    horn += cylinder(STD_HORN_D / 2, (top - STD_HORN_T, top))
+    for i in range(4):
+        angle = math.radians(45 + 90 * i)
+        at = (STD_HORN_SCREW_R * math.cos(angle), STD_HORN_SCREW_R * math.sin(angle))
+        horn -= cylinder(1.25, (top - STD_HORN_T - 1, top + 1), at=at)
     return horn

@@ -1,19 +1,31 @@
-"""Send a part, a hardware item, or the assembly to OCP CAD Viewer in VS Code.
+"""Send the layout, the assembly, a part, or a hardware item to OCP CAD Viewer in VS Code.
 
 Open the viewer first (OCP CAD Viewer icon in the VS Code activity bar, or
 "OCP CAD Viewer: Open viewer" from the command palette); it listens on port 3939.
 
-    uv run harwood0-show                          # the full assembly
-    uv run harwood0-show pan_head                 # one printed part or hardware item
-    uv run harwood0-show --pan 90 --tilt 30       # pose the camera head
-    uv run harwood0-show --only pan_head,tilt_servo,tilt_bracket,camera
+    uv run harwood0-show                 # robot plus each module detached beside it
+    uv run harwood0-show assembly        # just the finished robot
+    uv run harwood0-show track           # one printed part or hardware item
+    uv run harwood0-show assembly --pose ground_front
+    uv run harwood0-show assembly --only chassis,top_plate,motor_front_left
 """
 
 import argparse
+import copy
 
-from ocp_vscode import show
+from build123d import Color, Compound
 
-from harwood0_cad.assembly import items_for
+from harwood0_cad.assembly import Item, items_for, layout
+
+
+def _group(label: str, items: list[Item]) -> Compound:
+    children = []
+    for item in items:
+        shape = copy.copy(item.shape)
+        shape.label = item.name
+        shape.color = Color(item.color)
+        children.append(shape)
+    return Compound(children=children, label=label)
 
 
 def main() -> None:
@@ -21,27 +33,33 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "target", nargs="?", default="assembly", help="'assembly', a part name, or a hardware name"
+        "target",
+        nargs="?",
+        default="layout",
+        help="'layout', 'assembly', a part, or a hardware name",
     )
     parser.add_argument("--only", help="comma-separated assembly item names to include")
-    parser.add_argument("--pan", type=float, default=0.0, help="camera pan angle for the assembly")
-    parser.add_argument(
-        "--tilt", type=float, default=0.0, help="camera tilt angle for the assembly"
-    )
+    parser.add_argument("--pose", default="neutral", help="named arm pose for the assembly")
+    parser.add_argument("--cables", action="store_true", help="add the cable runs to the assembly")
     parser.add_argument("--port", type=int, default=None, help="viewer port (default 3939)")
     args = parser.parse_args()
 
-    only = set(args.only.split(",")) if args.only else None
-    try:
-        items = items_for(args.target, pan=args.pan, tilt=args.tilt, only=only)
-    except KeyError as e:
-        parser.error(str(e.args[0]))
-    show(
-        *[i.shape for i in items],
-        names=[i.name for i in items],
-        colors=[i.color for i in items],
-        port=args.port,
-    )
+    from ocp_vscode import Camera, show
+
+    if args.target == "layout":
+        groups = [_group(name, items) for name, items in layout().items()]
+    else:
+        only = set(args.only.split(",")) if args.only else None
+        try:
+            groups = [
+                _group(
+                    args.target,
+                    items_for(args.target, only=only, pose=args.pose, cables=args.cables),
+                )
+            ]
+        except KeyError as e:
+            parser.error(str(e.args[0]))
+    show(*groups, port=args.port, reset_camera=Camera.RESET)
 
 
 if __name__ == "__main__":

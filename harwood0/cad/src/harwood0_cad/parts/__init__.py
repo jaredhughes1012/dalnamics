@@ -4,22 +4,55 @@ from collections.abc import Callable
 
 from build123d import Location, Part, Rot
 
+from harwood0_cad.parts.arm_links import forearm, upper_arm
+from harwood0_cad.parts.carriage import carriage
 from harwood0_cad.parts.chassis import chassis
-from harwood0_cad.parts.deck import deck
-from harwood0_cad.parts.pan_head import pan_head
-from harwood0_cad.parts.tilt_bracket import tilt_bracket
+from harwood0_cad.parts.gripper import (
+    gripper_base,
+    gripper_gear,
+    gripper_jaw_front,
+    gripper_jaw_rear,
+)
+from harwood0_cad.parts.pinion import pinion
+from harwood0_cad.parts.table import table
 from harwood0_cad.parts.tolerance_coupon import tolerance_coupon
+from harwood0_cad.parts.top_plate import top_plate
+from harwood0_cad.parts.tower import hood, hood_lid, tower, tower_door
+from harwood0_cad.parts.track_lip import track_lip
+from harwood0_cad.parts.yaw_bracket import yaw_bracket
 
 PARTS: dict[str, Callable[[], Part]] = {
     "chassis": chassis,
-    "deck": deck,
-    "pan_head": pan_head,
-    "tilt_bracket": tilt_bracket,
+    "top_plate": top_plate,
+    "table": table,
+    "carriage": carriage,
+    "pinion": pinion,
+    "tower": tower,
+    "tower_door": tower_door,
+    "hood": hood,
+    "hood_lid": hood_lid,
+    "yaw_bracket": yaw_bracket,
+    "upper_arm": upper_arm,
+    "forearm": forearm,
+    "gripper_base": gripper_base,
+    "gripper_gear": gripper_gear,
+    "gripper_jaw_front": gripper_jaw_front,
+    "gripper_jaw_rear": gripper_jaw_rear,
+    "track_lip": track_lip,
     "tolerance_coupon": tolerance_coupon,
 }
 
 # Parts modelled in their assembled orientation that print better another way up.
 # Export applies these; anything not listed prints as modelled.
 PRINT_ROTATIONS: dict[str, Location] = {
-    "tilt_bracket": Rot(-90, 0, 0),  # back face down on the bed
+    "carriage": Rot(180, 0, 0),  # deck down
+    "yaw_bracket": Rot(180, 0, 0),  # top face down
+    "upper_arm": Rot(0, 90, 0),  # back face down
+    "forearm": Rot(0, 90, 0),
+    "gripper_base": Rot(0, -90, 0),  # floor's top face down
+    "gripper_gear": Rot(0, 90, 0),
+    "gripper_jaw_front": Rot(0, 90, 0),
+    "gripper_jaw_rear": Rot(0, 90, 0),
+    "track_lip": Rot(-90, 0, 0),  # outer face down
+    "tower_door": Rot(90, 0, 0),  # outer face down
 }

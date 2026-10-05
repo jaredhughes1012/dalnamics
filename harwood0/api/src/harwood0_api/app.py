@@ -6,7 +6,15 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from harwood0_api.config import Settings
-from harwood0_api.robot import Ping, Robot, RobotInfo
+from harwood0_api.robot import (
+    ArmTargets,
+    Drive,
+    Ping,
+    Robot,
+    RobotInfo,
+    RobotState,
+    TrackTarget,
+)
 from harwood0_api.transport import RobotError, RobotUnavailable, make_transport
 
 
@@ -48,5 +56,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/robot/stop", status_code=204, summary=Robot.stop.__doc__)
     async def stop(robot: RobotDep) -> None:
         await robot.stop()
+
+    @app.post("/robot/drive", status_code=204, summary=Robot.drive.__doc__)
+    async def drive(body: Drive, robot: RobotDep) -> None:
+        await robot.drive(**body.model_dump())
+
+    @app.post("/robot/arm", status_code=204, summary=Robot.move_arm.__doc__)
+    async def arm(body: ArmTargets, robot: RobotDep) -> None:
+        await robot.move_arm(**body.model_dump())
+
+    @app.post("/robot/track", status_code=204, summary=Robot.move_track.__doc__)
+    async def track(body: TrackTarget, robot: RobotDep) -> None:
+        await robot.move_track(body.x)
+
+    @app.post("/robot/track/home", status_code=204, summary=Robot.home_track.__doc__)
+    async def home_track(robot: RobotDep) -> None:
+        await robot.home_track()
+
+    @app.get("/robot/state", summary=Robot.state.__doc__)
+    async def state(robot: RobotDep) -> RobotState:
+        return await robot.state()
 
     return app

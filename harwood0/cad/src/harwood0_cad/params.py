@@ -7,13 +7,8 @@ centre of the footprint on the ground. All units are millimetres.
 """
 
 from harwood0_cad.hardware.battery import LIPO_H
-from harwood0_cad.hardware.motors import (
-    BYJ_BODY_H,
-    BYJ_EAR_T,
-    BYJ_SHAFT_OFFSET,
-    GA25_GEARBOX_D,
-    GA25_LENGTH,
-)
+from harwood0_cad.hardware.boards import ESP32_CAM_LENS_TIP, UNO_HEIGHT
+from harwood0_cad.hardware.motors import GA25_GEARBOX_D, GA25_LENGTH
 from harwood0_cad.hardware.wheels import COUPLING_L, WHEEL_D, WHEEL_W
 
 # Printer build volume (X, Y, Z).
@@ -29,55 +24,103 @@ WALL = 2.4
 # Fasteners: M3 is the default structural fastener, self-tapped into printed pilot holes.
 M3_CLEARANCE_D = 3.2 + FIT_CLEARANCE
 M3_PILOT_D = 2.6
+M3_HEAD_D = 6.0
 M3_HEAT_SET_D = 4.0  # typical hole diameter for an M3 x 5.7 brass heat-set insert
 M3_HEAT_SET_DEPTH = 5.7
+M2_5_PILOT_D = 2.1  # M2.5 self-tapping screws, for small boards
 
-# Drivetrain: four motors bolted by their gearbox faces to the chassis side walls,
-# each directly driving a mecanum wheel.
-AXLE_Z = WHEEL_D / 2
-MOTOR_X = 70.0  # half the wheelbase
-
-# Chassis tray.
-CHASSIS_L = 175.0
-CHASSIS_W = 118.0
-CHASSIS_CORNER_R = 8.0
-CHASSIS_INNER_CORNER_R = 2.0  # small, so the motor gearboxes can sit tight in the corners
-SIDE_WALL_T = 4.0
-END_WALL_T = 3.0
+# Body: a flat box, rounded at the nose, open on top under a removable work table.
+CHASSIS_L = 240.0
+CHASSIS_W = 200.0
+NOSE_R = 30.0  # front corners, in plan
+TAIL_R = 15.0  # rear corners, in plan
+BODY_WALL_T = 3.0
 FLOOR_T = 3.0
+BOTTOM_EDGE_R = 3.0
+
+# Drivetrain: four motors bolted by their gearbox faces to two lengthwise inner walls,
+# each directly driving a mecanum wheel that sits in an arched well in the body side.
+AXLE_Z = WHEEL_D / 2
+MOTOR_X = 75.0  # half the wheelbase
 FLOOR_Z = AXLE_Z - GA25_GEARBOX_D / 2 - 1.5 - FLOOR_T  # floor underside
 FLOOR_TOP_Z = FLOOR_Z + FLOOR_T
-CHASSIS_TOP_Z = 55.0
-CHASSIS_H = CHASSIS_TOP_Z - FLOOR_Z
-MOTOR_FACE_Y = CHASSIS_W / 2 - SIDE_WALL_T  # inside face of each side wall
-assert 2 * GA25_LENGTH + 4 < 2 * MOTOR_FACE_Y, "facing motors collide"
-assert CHASSIS_TOP_Z > AXLE_Z + GA25_GEARBOX_D / 2, "motors poke above the chassis"
-assert CHASSIS_TOP_Z > FLOOR_TOP_Z + LIPO_H + 2, "battery does not fit under the deck"
+MOTOR_WALL_T = 6.0
+MOTOR_FACE_Y = 54.0  # inner face of each motor wall
+MOTOR_WALL_Y = MOTOR_FACE_Y + MOTOR_WALL_T  # outer face of each motor wall; wells start here
+assert 2 * GA25_LENGTH + 2 < 2 * MOTOR_FACE_Y, "facing motors collide"
 
-WHEEL_GAP = 1.0  # side wall to coupling
-WHEEL_Y = CHASSIS_W / 2 + WHEEL_GAP + COUPLING_L + WHEEL_W / 2
+WHEEL_GAP = 0.5  # motor wall to coupling
+WHEEL_Y = MOTOR_WALL_Y + WHEEL_GAP + COUPLING_L + WHEEL_W / 2
+WELL_R = WHEEL_D / 2 + 4  # arch radius around the axle
+WELL_DIVIDER_T = 3.0  # walls between each well and the side bay
+WELL_DIVIDER_X = MOTOR_X - WELL_R  # inner face of each divider, towards the side bay
 
-# Battery sits in corner guides on the floor, held down by the deck.
-BATTERY_CENTER = (0.0, 0.0)
-UBEC_CENTER = (0.0, 37.5)
+# Heights: the chassis tray is closed by a top plate, which carries the track and frames the
+# removable work table with a margin all round.
+SUPPORT_Z = AXLE_Z + WELL_R + 6  # chassis wall tops, top plate underside
+TOP_PLATE_T = 6.0
+TOP_Z = SUPPORT_Z + TOP_PLATE_T  # body top
+TABLE_T = 4.0
+TABLE_MARGIN = 15.0  # top plate visible around the table, from the body edge
+TABLE_MARGIN_TRACK = 22.0  # and from the track, which is wider to hold the cable channel
+TABLE_LIP_W = 4.0  # ledge in the top plate's opening that the table rests on
+TABLE_Z = TOP_Z - TABLE_T  # table underside; its top is flush with the body top
+assert SUPPORT_Z > FLOOR_TOP_Z + LIPO_H + 5, "battery does not fit under the top plate"
+assert SUPPORT_Z > FLOOR_TOP_Z + 5 + UNO_HEIGHT + 5, "Uno does not fit under the top plate"
+assert SUPPORT_Z > AXLE_Z + WHEEL_D / 2 + 3, "wheels rub the top plate"
 
-# Deck: a plate screwed onto the chassis walls, carrying the electronics and the camera mast.
-DECK_Z = CHASSIS_TOP_Z
-DECK_T = 3.0
-DECK_TOP_Z = DECK_Z + DECK_T
-DECK_SCREWS = tuple((x, y) for x in (-40.0, 40.0) for y in (-(MOTOR_FACE_Y - 3), MOTOR_FACE_Y - 3))
-DECK_BOSS_D = 8.0
+# Track: a raised strip along the right of the top plate, carrying the arm tower's carriage.
+TRACK_Y = (-(CHASSIS_W / 2 - BODY_WALL_T), -(MOTOR_WALL_Y - MOTOR_WALL_T / 2))
+TRACK_FRONT_OFFSET = 20.0  # from the nose to the track's front end
+TRACK_REAR_OFFSET = 20.0  # from the tail to the track's rear end
+TRACK_X = (-CHASSIS_L / 2 + TRACK_REAR_OFFSET, CHASSIS_L / 2 - TRACK_FRONT_OFFSET)
+TABLE_Y = (TRACK_Y[1] + TABLE_MARGIN_TRACK, CHASSIS_W / 2 - TABLE_MARGIN)
 
-UNO_ORIGIN = (-CHASSIS_L / 2 + 4, -26.7)  # board's bottom-left corner; USB faces the rear
+# Tower cable: a flat ribbon in a rolling loop, in the margin between the track and the table.
+# Its fixed end drops into the body through the port at the front; from there it lies along
+# a channel recessed into the margin, curls up and over, and runs back to a clamp at the
+# carriage's rear. As the carriage moves, the curl rolls along the channel.
+CABLE_CHANNEL_Y = (TRACK_Y[1] + 8.5, TRACK_Y[1] + 19.0)  # clear of the track-side snap slots
+CABLE_CHANNEL_X = (-110.0, 102.0)
+CABLE_CHANNEL_DEPTH = 4.0
+CABLE_PORT_X = (90.0, 102.0)
+CABLE_BEND_R = 5.0  # the ribbon's curl
+# The ribbon: two stacked layers of jumper wire (bus and servo power, then the stepper's five).
+RIBBON_WIDTH = 9.5
+RIBBON_THICKNESS = 3.2
+
+# Top plate snaps: arms rising from the chassis walls through slots in the top plate, their
+# barbs clicking over its top face. Each is (x, y) on a wall's inner face, and the direction
+# (degrees about Z, 0 = +X) that faces into the body from that wall. The track side snaps
+# sit on the right motor wall, clear of the cable port, so their barbs pass under the carriage.
+_FRONT_X, _REAR_X = CHASSIS_L / 2 - BODY_WALL_T, -CHASSIS_L / 2 + BODY_WALL_T
+_LEFT_Y = CHASSIS_W / 2 - BODY_WALL_T
+TOP_PLATE_SNAPS = (
+    ((_FRONT_X, 40.0), 180.0),
+    ((_FRONT_X, -40.0), 180.0),
+    ((_REAR_X, 40.0), 0.0),
+    ((_REAR_X, -40.0), 0.0),
+    ((-15.0, _LEFT_Y), -90.0),
+    ((15.0, _LEFT_Y), -90.0),
+    *(((x, -MOTOR_FACE_Y), 90.0) for x in (-55.0, -25.0, 30.0, 60.0)),
+)
+
+# Electronics, all under the table.
+BATTERY_CENTER = (0.0, 34.0)
+UNO_ORIGIN = (6.6, 0.4)  # board rotated 180 deg: this is its bottom-left corner after rotation
 UNO_STANDOFF_H = 5.0
-TB6612_CENTERS = ((-60.0, 42.0), (-60.0, -42.0))  # front-wheel driver, rear-wheel driver
-ULN2003_CENTER = (65.5, 38.0)
 BOARD_STANDOFF_D = 6.0
+TB6612_CENTERS = ((46.0, -18.0), (46.0, -42.0))  # front-wheel driver, rear-wheel driver
+UBEC_CENTER = (0.0, 74.0)  # left side bay
+ULN2003_CENTER = (0.0, -78.5)  # right side bay, under the track
 
-# Camera head: pan stepper on two pillars, pan head on its shaft, tilt servo on the pan head.
-PAN_X = 45.0
-STEPPER_BODY_X = PAN_X - BYJ_SHAFT_OFFSET
-STEPPER_PILLAR_H = BYJ_BODY_H + 2
-STEPPER_FLANGE_Z = DECK_TOP_Z + STEPPER_PILLAR_H + BYJ_EAR_T  # ear top face
-PAN_HEAD_Z = STEPPER_FLANGE_Z + 3.5  # pan disc underside, clear of the ear screw heads
-TILT_AXIS_H = 36.0  # tilt axis above the pan disc underside
+# Front camera: stands on the floor, its lens through a fitted hole in the nose, flush outside.
+CAMERA_PCB_FRONT_X = CHASSIS_L / 2 - ESP32_CAM_LENS_TIP
+
+# Arm tower: rides the track on a carriage. The yaw servo hangs in the tower's hood over the
+# table; the arm is yaw, shoulder, elbow, and a gripper with its own camera.
+CARRIAGE_L = 50.0
+ARM_YAW_Y = -24.0  # yaw axis, inside the table's right edge; clears the carriage when yawed
+SHOULDER_Z = 215.0  # shoulder axis height above the ground
+UPPER_ARM_L = 105.0  # shoulder axis to elbow axis
+FOREARM_L = 120.0  # elbow axis to the gripper fingertips

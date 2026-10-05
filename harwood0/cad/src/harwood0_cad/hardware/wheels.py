@@ -1,7 +1,5 @@
 """Mecanum wheel with its shaft coupling."""
 
-import math
-
 from build123d import Part, Pos, Rot
 
 from harwood0_cad.shapes import cylinder
@@ -16,6 +14,7 @@ WHEEL_HUB_D = 48.0
 WHEEL_PLATE_D = 58.0
 COUPLING_D = 14.0
 COUPLING_L = 10.0  # from the wheel's inner face towards the motor
+WHEEL_MASS = 60.0  # grams, with coupling; aluminium-hub wheels can be nearly double
 
 
 def mecanum_wheel(hand: int = 1) -> Part:
@@ -36,8 +35,3 @@ def mecanum_wheel(hand: int = 1) -> Part:
     for i in range(WHEEL_ROLLERS):
         wheel += Rot(0, 0, i * 360 / WHEEL_ROLLERS) * roller
     return wheel
-
-
-# Wheel's farthest extent below its axis, for ground-clearance maths.
-WHEEL_RADIUS = WHEEL_D / 2
-assert math.isclose(WHEEL_RADIUS, 40.0)

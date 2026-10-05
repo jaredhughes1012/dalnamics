@@ -1,4 +1,4 @@
-.PHONY: test test-cad test-firmware test-api cad render show firmware flash api api-sim lint
+.PHONY: test test-cad test-firmware test-api cad render show cables stability firmware flash api api-sim lint
 
 test: test-cad test-firmware test-api
 
@@ -23,6 +23,12 @@ render:
 
 show:
 	cd cad && uv run harwood0-show
+
+cables:
+	cd cad && uv run harwood0-cables
+
+stability:
+	cd cad && uv run harwood0-stability
 
 firmware:
 	cd firmware && pio run -e uno_r4_wifi

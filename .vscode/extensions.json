@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "bernhard-42.ocp-cad-viewer",
+    "platformio.platformio-ide",
+    "charliermarsh.ruff",
+    "ms-python.python"
+  ]
+}

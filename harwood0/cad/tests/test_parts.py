@@ -2,11 +2,13 @@ import pytest
 
 from harwood0_cad import params
 from harwood0_cad.parts import PARTS
+from harwood0_cad.printing import print_part
 
 
 @pytest.fixture(params=sorted(PARTS), ids=str)
 def part(request):
-    return PARTS[request.param]()
+    """The part as it sits on the bed."""
+    return print_part(request.param)
 
 
 def test_part_is_valid_solid(part):

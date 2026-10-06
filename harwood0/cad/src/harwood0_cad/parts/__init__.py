@@ -6,7 +6,7 @@ from build123d import Location, Part, Rot
 
 from harwood0_cad.parts.arm_links import forearm, upper_arm
 from harwood0_cad.parts.carriage import carriage
-from harwood0_cad.parts.chassis import chassis
+from harwood0_cad.parts.chassis import chassis, chassis_fit_section
 from harwood0_cad.parts.gripper import (
     gripper_base,
     gripper_gear,
@@ -40,11 +40,14 @@ PARTS: dict[str, Callable[[], Part]] = {
     "gripper_jaw_rear": gripper_jaw_rear,
     "track_lip": track_lip,
     "tolerance_coupon": tolerance_coupon,
+    "chassis_fit_section": chassis_fit_section,
 }
 
 # Parts modelled in their assembled orientation that print better another way up.
 # Export applies these; anything not listed prints as modelled.
 PRINT_ROTATIONS: dict[str, Location] = {
+    "chassis": Rot(0, 0, 90),  # long side along Y, where the bed is widest
+    "top_plate": Rot(0, 0, 90),
     "carriage": Rot(180, 0, 0),  # deck down
     "yaw_bracket": Rot(180, 0, 0),  # top face down
     "upper_arm": Rot(0, 90, 0),  # back face down

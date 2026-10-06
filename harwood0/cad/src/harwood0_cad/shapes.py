@@ -46,36 +46,3 @@ def double_d_shaft(diameter: float, flat: float, span: Span, flat_span: Span | N
     r = diameter / 2
     cut = box((flat / 2, r + 1), (-r - 1, r + 1), flat_span)
     return cylinder(r, span) - cut - Rot(0, 0, 180) * cut
-
-
-def corner_guides(
-    center: tuple[float, float], size: tuple[float, float], z: Span, leg: float = 10, t: float = 1.6
-) -> Part:
-    """Four L-shaped corner fences that locate a rectangular item of `size` without gluing.
-
-    `size` should already include any fit clearance.
-    """
-    cx, cy = center
-    hx, hy = size[0] / 2, size[1] / 2
-    guides = []
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            x_edge, y_edge = cx + sx * hx, cy + sy * hy
-            guides.append(
-                box(
-                    sorted((x_edge, x_edge + sx * t)),
-                    sorted((y_edge + sy * t, y_edge - sy * leg)),
-                    z,
-                )
-            )
-            guides.append(
-                box(
-                    sorted((x_edge + sx * t, x_edge - sx * leg)),
-                    sorted((y_edge, y_edge + sy * t)),
-                    z,
-                )
-            )
-    result = guides[0]
-    for g in guides[1:]:
-        result += g
-    return result

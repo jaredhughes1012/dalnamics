@@ -3,7 +3,8 @@
 Open the viewer first (OCP CAD Viewer icon in the VS Code activity bar, or
 "OCP CAD Viewer: Open viewer" from the command palette); it listens on port 3939.
 
-    uv run harwood0-show                 # robot plus each module detached beside it
+    uv run harwood0-show                 # robot plus the chassis and arm tower detached beside it
+    uv run harwood0-show print           # every printed part on the bed, in a grid
     uv run harwood0-show assembly        # just the finished robot
     uv run harwood0-show track           # one printed part or hardware item
     uv run harwood0-show assembly --pose ground_front
@@ -36,7 +37,7 @@ def main() -> None:
         "target",
         nargs="?",
         default="layout",
-        help="'layout', 'assembly', a part, or a hardware name",
+        help="'layout', 'assembly', 'print', a part, or a hardware name",
     )
     parser.add_argument("--only", help="comma-separated assembly item names to include")
     parser.add_argument("--pose", default="neutral", help="named arm pose for the assembly")

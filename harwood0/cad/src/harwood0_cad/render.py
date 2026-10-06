@@ -7,7 +7,8 @@ hardware is grey or its own colour.
     uv run harwood0-render                 # the full assembly
     uv run harwood0-render chassis mg90s   # individual parts or hardware
     uv run harwood0-render --all           # every part and hardware item
-    uv run harwood0-render layout          # the robot plus each module detached
+    uv run harwood0-render layout          # the robot plus the chassis and arm tower detached
+    uv run harwood0-render print           # every printed part on the bed, in a grid
     uv run harwood0-render --only chassis,track,uno
     uv run harwood0-render assembly --cables --section x=-8.5   # cut-away through the tower
 """
@@ -88,9 +89,11 @@ def main() -> None:
     parser.add_argument("--section", help="cut away everything beyond a plane, e.g. x=-8.5 or y=0")
     args = parser.parse_args()
 
-    known = {"assembly", "layout", *PARTS, *HARDWARE}
+    known = {"assembly", "layout", "print", *PARTS, *HARDWARE}
     targets = (
-        ["assembly", "layout", *PARTS, *HARDWARE] if args.all else args.targets or ["assembly"]
+        ["assembly", "layout", "print", *PARTS, *HARDWARE]
+        if args.all
+        else args.targets or ["assembly"]
     )
     unknown = set(targets) - known
     if unknown:
@@ -108,6 +111,8 @@ def main() -> None:
             suffix += "_cables" if args.cables else ""
             suffix += f"_section_{args.section.replace('=', '')}" if args.section else ""
             path = args.out / f"{name}{suffix}.png"
+        elif name == "print":
+            path = args.out / "print.png"
         else:
             path = args.out / ("parts" if name in PARTS else "hardware") / f"{name}.png"
         section = None

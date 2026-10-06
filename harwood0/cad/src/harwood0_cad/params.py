@@ -11,11 +11,12 @@ from harwood0_cad.hardware.boards import ESP32_CAM_LENS_TIP, UNO_HEIGHT
 from harwood0_cad.hardware.motors import GA25_GEARBOX_D, GA25_LENGTH
 from harwood0_cad.hardware.wheels import COUPLING_L, WHEEL_D, WHEEL_W
 
-# Printer build volume (X, Y, Z).
-BUILD_VOLUME = (256.0, 256.0, 256.0)
+# Printer build volume (X, Y, Z): a Bambu Lab X2D, whose auxiliary nozzle (and so any
+# print using both nozzles) only reaches 235.5 mm in X. Parts must fit this smallest volume.
+BUILD_VOLUME = (235.5, 256.0, 256.0)
 
 # Extra clearance added to holes and mating faces to absorb FDM shrink/over-extrusion.
-# Calibrate with the tolerance_coupon part and update.
+# Calibrate with the tolerance_coupon part and update, along with the pilot sizes below.
 FIT_CLEARANCE = 0.2
 
 # Minimum wall thickness for structural walls (a multiple of a 0.4 mm nozzle line width).
@@ -23,11 +24,9 @@ WALL = 2.4
 
 # Fasteners: M3 is the default structural fastener, self-tapped into printed pilot holes.
 M3_CLEARANCE_D = 3.2 + FIT_CLEARANCE
-M3_PILOT_D = 2.6
+M3_PILOT_D = 2.8  # calibrated with the tolerance coupon
 M3_HEAD_D = 6.0
-M3_HEAT_SET_D = 4.0  # typical hole diameter for an M3 x 5.7 brass heat-set insert
-M3_HEAT_SET_DEPTH = 5.7
-M2_5_PILOT_D = 2.1  # M2.5 self-tapping screws, for small boards
+M2_5_PILOT_D = 2.3  # M2.5 self-tapping screws, for small boards; calibrated with the coupon
 
 # Body: a flat box, rounded at the nose, open on top under a removable work table.
 CHASSIS_L = 240.0
@@ -65,6 +64,11 @@ TABLE_MARGIN = 15.0  # top plate visible around the table, from the body edge
 TABLE_MARGIN_TRACK = 22.0  # and from the track, which is wider to hold the cable channel
 TABLE_LIP_W = 4.0  # ledge in the top plate's opening that the table rests on
 TABLE_Z = TOP_Z - TABLE_T  # table underside; its top is flush with the body top
+# Rim: a low rounded-rectangle wall on the table top that stops carried objects sliding off.
+TABLE_RIM_H = 2.0  # above the table top
+TABLE_RIM_W = 2.0
+TABLE_RIM_INSET = 2.0  # from the table edges, and from the finger notch at the rear
+TABLE_RIM_R = NOSE_R - TABLE_MARGIN - TABLE_RIM_INSET  # outer corners; concentric with the nose
 assert SUPPORT_Z > FLOOR_TOP_Z + LIPO_H + 5, "battery does not fit under the top plate"
 assert SUPPORT_Z > FLOOR_TOP_Z + 5 + UNO_HEIGHT + 5, "Uno does not fit under the top plate"
 assert SUPPORT_Z > AXLE_Z + WHEEL_D / 2 + 3, "wheels rub the top plate"
@@ -114,7 +118,7 @@ TB6612_CENTERS = ((46.0, -18.0), (46.0, -42.0))  # front-wheel driver, rear-whee
 UBEC_CENTER = (0.0, 74.0)  # left side bay
 ULN2003_CENTER = (0.0, -78.5)  # right side bay, under the track
 
-# Front camera: stands on the floor, its lens through a fitted hole in the nose, flush outside.
+# Front camera: stands on the floor, its lens in a window in the nose, nominally flush outside.
 CAMERA_PCB_FRONT_X = CHASSIS_L / 2 - ESP32_CAM_LENS_TIP
 
 # Arm tower: rides the track on a carriage. The yaw servo hangs in the tower's hood over the

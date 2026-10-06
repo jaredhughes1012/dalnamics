@@ -1,7 +1,7 @@
 """Export printed parts to STL (for slicing) and STEP (for other CAD tools).
 
-Only printed parts are exported, in their print orientation; hardware models
-are never written out.
+Only printed parts are exported, in their print orientation and sitting on the
+bed (Z=0); hardware models are never written out.
 """
 
 import argparse
@@ -9,7 +9,8 @@ from pathlib import Path
 
 from build123d import export_step, export_stl
 
-from harwood0_cad.parts import PARTS, PRINT_ROTATIONS
+from harwood0_cad.parts import PARTS
+from harwood0_cad.printing import print_part
 
 DEFAULT_OUT = Path(__file__).resolve().parents[2] / "build"
 
@@ -26,9 +27,7 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     for name in args.parts or PARTS:
-        part = PARTS[name]()
-        if name in PRINT_ROTATIONS:
-            part = PRINT_ROTATIONS[name] * part
+        part = print_part(name)
         export_stl(part, str(args.out / f"{name}.stl"))
         export_step(part, str(args.out / f"{name}.step"))
         print(f"exported {name} -> {args.out}")

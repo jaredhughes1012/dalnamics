@@ -4,7 +4,8 @@ A flat open-topped box with a rounded nose. Two lengthwise inner walls carry the
 four motors, each bolted through by its gearbox face (2x M3), with the shaft
 passing out into an arched wheel well in the body side. Between each pair of
 wells is a side bay: the UBEC sits in the left one, the ULN2003 in the right one.
-The battery, Uno, and TB6612s sit in the centre bay. The ESP32-CAM stands in
+The battery, Uno, and TB6612s sit in the centre bay. Only the Uno and ULN2003
+screw down; the battery, UBEC, and TB6612s are held to the floor with double-sided tape. The ESP32-CAM stands in
 grooves behind a window in the nose.
 
 The top plate (which carries the track and frames the work table) snaps onto
@@ -19,17 +20,12 @@ Printed as modelled, floor down. The well arches print as bridges.
 from build123d import Axis, Part, fillet
 
 from harwood0_cad import params as p
-from harwood0_cad.hardware.battery import LIPO_L, LIPO_W
 from harwood0_cad.hardware.boards import (
     ESP32_CAM_HEADER_LEN,
     ESP32_CAM_L,
-    ESP32_CAM_LENS_D,
     ESP32_CAM_LENS_Y,
     ESP32_CAM_W,
     PCB_T,
-    TB6612_SIZE,
-    UBEC_L,
-    UBEC_W,
     ULN2003_HOLE_INSET,
     ULN2003_L,
     ULN2003_W,
@@ -43,7 +39,7 @@ from harwood0_cad.hardware.motors import (
 )
 from harwood0_cad.parts.body import body_plan
 from harwood0_cad.parts.snaps import snap_arms
-from harwood0_cad.shapes import box, corner_guides, cylinder
+from harwood0_cad.shapes import box, cylinder
 
 T = p.BODY_WALL_T
 H = p.SUPPORT_Z - p.FLOOR_Z  # wall tops, where the top plate sits
@@ -51,10 +47,11 @@ AXLE_H = p.AXLE_Z - p.FLOOR_Z
 FLOOR = p.FLOOR_T
 
 SADDLE_Y = p.MOTOR_FACE_Y - GA25_GEARBOX_L - 12  # under each motor can
-GUIDE_H = 6.0
 WIRE_HOLE_D = 14.0
 WIRE_HOLE_Z = H - 12.0  # through the motor walls, above the battery and boards
 
+CAMERA_WINDOW = 20.0  # square, centred on the lens's nominal position
+CAMERA_WINDOW_R = 3.0
 CAMERA_LIP_T = 1.2
 CAMERA_LIP_OVERLAP = 1.5
 CAMERA_RAIL_T = 2.0
@@ -107,24 +104,19 @@ def _motor_mounts(shell: Part) -> Part:
     return shell
 
 
-def _electronics_mounts() -> Part:
-    c = 2 * p.FIT_CLEARANCE
-    z = (FLOOR - 0.1, FLOOR + GUIDE_H)
-    mounts = corner_guides(p.BATTERY_CENTER, (LIPO_L + c + 1, LIPO_W + c + 1), z, leg=15)
-    mounts += corner_guides(p.UBEC_CENTER, (UBEC_L + c, UBEC_W + c), z, leg=8)
-    for center in p.TB6612_CENTERS:
-        mounts += corner_guides(
-            center, (TB6612_SIZE + c, TB6612_SIZE + c), (FLOOR - 0.1, FLOOR + 3), leg=6
-        )
-
+def _board_standoffs() -> Part:
+    """Standoffs for the two screwed-down boards. The battery, UBEC, and TB6612s are taped
+    to the floor."""
     ux, uy = p.UNO_ORIGIN
     standoffs = [(ux - hx, uy - hy) for hx, hy in UNO_HOLES]  # board is rotated 180 deg
     cx, cy = p.ULN2003_CENTER
     ix, iy = ULN2003_L / 2 - ULN2003_HOLE_INSET, ULN2003_W / 2 - ULN2003_HOLE_INSET
     standoffs += [(cx + sx * ix, cy + sy * iy) for sx in (-1, 1) for sy in (-1, 1)]
     top = FLOOR + p.UNO_STANDOFF_H
+    mounts = None
     for x, y in standoffs:
-        mounts += cylinder(p.BOARD_STANDOFF_D / 2, (FLOOR - 0.1, top), at=(x, y))
+        standoff = cylinder(p.BOARD_STANDOFF_D / 2, (FLOOR - 0.1, top), at=(x, y))
+        mounts = standoff if mounts is None else mounts + standoff
         mounts -= cylinder(p.M3_PILOT_D / 2, (FLOOR, top + 1), at=(x, y))
     return mounts
 
@@ -158,17 +150,28 @@ def chassis() -> Part:
 
     shell += snap_arms(H)
 
-    shell += _electronics_mounts()
+    shell += _board_standoffs()
     shell += _camera_mount()
 
-    # A close-fitting hole for the lens, whose tip sits flush with the nose.
+    # A window for the lens, oversized because the lens hangs on a flex cable and its
+    # position on the board varies from module to module.
     lens_z = FLOOR + ESP32_CAM_L / 2 + ESP32_CAM_LENS_Y
-    lens_r = ESP32_CAM_LENS_D / 2 + p.FIT_CLEARANCE / 2
-    shell -= cylinder(
-        lens_r, (p.CHASSIS_L / 2 - T - 1, p.CHASSIS_L / 2 + 1), axis="x", at=(0, lens_z)
-    )
+    h = CAMERA_WINDOW / 2
+    window = box((p.CHASSIS_L / 2 - T - 1, p.CHASSIS_L / 2 + 1), (-h, h), (lens_z - h, lens_z + h))
+    shell -= fillet(window.edges().filter_by(Axis.X), CAMERA_WINDOW_R)
 
     for side in (-1, 1):
         wall = sorted((side * (p.MOTOR_FACE_Y - 1), side * (p.MOTOR_WALL_Y + 1)))
         shell -= cylinder(WIRE_HOLE_D / 2, wall, axis="y", at=(0, WIRE_HOLE_Z))
     return shell
+
+
+# The front-left corner, for a test print: the nose camera grooves and window, one motor
+# mount and wheel well (from the well divider to the outside), and a top plate snap arm.
+FIT_SECTION_X = (p.WELL_DIVIDER_X - p.WELL_DIVIDER_T - 3.0, p.CHASSIS_L / 2 + 1)
+FIT_SECTION_Y = (-20.0, p.CHASSIS_W / 2 + 1)
+
+
+def chassis_fit_section() -> Part:
+    """A corner of the chassis to test fits before printing the whole body."""
+    return chassis() & box(FIT_SECTION_X, FIT_SECTION_Y, (-1, H + 20))

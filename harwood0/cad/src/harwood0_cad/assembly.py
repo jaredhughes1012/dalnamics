@@ -84,6 +84,7 @@ from harwood0_cad.parts import (
 )
 from harwood0_cad.parts.gripper import CAM_CENTER_X, CAM_FRONT_Y
 from harwood0_cad.parts.tower import DRIVER_PLACE, DRIVER_SERVO_CHANNELS
+from harwood0_cad.printing import print_layout
 from harwood0_cad.track_geometry import POCKET_X, SLOT_DEPTH, SLOT_Y
 
 PRINTED = "#e8833a"
@@ -108,8 +109,7 @@ WHEEL_POSITIONS = {
 # Where each detached module sits in the viewer layout, relative to its place on the robot.
 LAYOUT_OFFSETS = {
     "chassis": Pos(0, -320, 0),
-    "table": Pos(0, 300, -p.TABLE_Z),
-    "arm tower": Pos(0, 560, -(TRACK_TOP_Z - SLOT_DEPTH)),
+    "arm tower": Pos(0, 300, -(TRACK_TOP_Z - SLOT_DEPTH)),
 }
 
 # Turn a servo model (shaft along +Z, body towards -X) so its shaft points along +X or -X,
@@ -287,9 +287,9 @@ def cable_items(pose: Pose = POSES["neutral"]) -> list[Item]:
 
 
 def layout() -> dict[str, list[Item]]:
-    """The finished robot plus a detached copy of each module beside it, and the robot's cables."""
+    """The finished robot plus the chassis and arm tower detached beside it, and the robot's cables."""
     groups = {"robot": robot(), "cables": cable_items()}
-    modules = {"chassis": chassis_module, "table": table_module, "arm tower": tower_module}
+    modules = {"chassis": chassis_module, "arm tower": tower_module}
     for name, build in modules.items():
         groups[f"{name} (detached)"] = [item.moved(LAYOUT_OFFSETS[name]) for item in build()]
     return groups
@@ -299,7 +299,8 @@ def items_for(
     target: str, only: set[str] | None = None, pose: str = "neutral", cables: bool = False
 ) -> list[Item]:
     """Resolve a target: "assembly" (the robot, optionally filtered, optionally with its
-    cables), "layout", a part, or a hardware item."""
+    cables), "layout", "print" (every printed part on the bed, in a grid), a part, or a
+    hardware item."""
     if target == "assembly":
         items = robot(POSES[pose])
         if only:
@@ -315,9 +316,11 @@ def items_for(
         return [
             replace(i, name=f"{group}.{i.name}") for group, items in layout().items() for i in items
         ]
+    if target == "print":
+        return [Item(label, shape, PRINTED, True) for label, shape in print_layout()]
     if target in PARTS:
         return [Item(target, PARTS[target](), PRINTED, True)]
     if target in HARDWARE:
         return [Item(target, HARDWARE[target](), HARDWARE_GREY, False)]
-    known = ", ".join(sorted({"assembly", "layout", *PARTS, *HARDWARE}))
+    known = ", ".join(sorted({"assembly", "layout", "print", *PARTS, *HARDWARE}))
     raise KeyError(f"unknown target {target!r}; known: {known}")

@@ -3,6 +3,7 @@ module dalnamics/services/cli
 go 1.26.0
 
 require (
+	github.com/gofrs/flock v0.13.0
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2

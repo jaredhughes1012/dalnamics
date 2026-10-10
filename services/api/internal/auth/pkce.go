@@ -2,17 +2,15 @@ package auth
 
 import (
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"net"
 	"net/url"
 )
 
-// verifyPKCE reports whether verifier hashes to challenge using the S256 method.
-func verifyPKCE(verifier, challenge string) bool {
+// pkceChallenge returns the S256 challenge for verifier.
+func pkceChallenge(verifier string) string {
 	sum := sha256.Sum256([]byte(verifier))
-	got := base64.RawURLEncoding.EncodeToString(sum[:])
-	return subtle.ConstantTimeCompare([]byte(got), []byte(challenge)) == 1
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // validChallenge reports whether challenge looks like a base64url SHA-256.

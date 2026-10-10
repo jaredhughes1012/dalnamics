@@ -21,6 +21,13 @@ type CliAuthCode struct {
 	CreatedAt     time.Time
 }
 
+// SHA-256 of every refresh token a session has rotated away from, written by a trigger on sessions. Presenting one of these again means the token was copied, so the api revokes its session.
+type RotatedRefreshToken struct {
+	TokenHash []byte
+	SessionID uuid.UUID
+	RotatedAt time.Time
+}
+
 // A signed-in device or client (studio browser, cli). Holds the SHA-256 of the current refresh token, which is rotated on every refresh; access tokens carry the session id so logout can revoke them.
 type Session struct {
 	ID               uuid.UUID

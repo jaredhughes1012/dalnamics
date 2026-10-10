@@ -179,10 +179,25 @@ func (q *Queries) RevokeSession(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const revokeSessionByRotatedRefreshToken = `-- name: RevokeSessionByRotatedRefreshToken :execrows
+UPDATE sessions SET revoked_at = now()
+WHERE revoked_at IS NULL
+  AND id = (SELECT session_id FROM rotated_refresh_tokens WHERE token_hash = $1)
+`
+
+// Revokes the session that previously rotated away from a refresh token.
+func (q *Queries) RevokeSessionByRotatedRefreshToken(ctx context.Context, tokenHash []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSessionByRotatedRefreshToken, tokenHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const rotateSessionRefreshToken = `-- name: RotateSessionRefreshToken :one
 UPDATE sessions
-SET refresh_token_hash = $1, expires_at = $2
-WHERE refresh_token_hash = $3
+SET refresh_token_hash = $1
+WHERE refresh_token_hash = $2
   AND revoked_at IS NULL
   AND expires_at > now()
 RETURNING id, user_id, client, refresh_token_hash, expires_at, revoked_at, created_at, updated_at
@@ -190,13 +205,14 @@ RETURNING id, user_id, client, refresh_token_hash, expires_at, revoked_at, creat
 
 type RotateSessionRefreshTokenParams struct {
 	NewRefreshTokenHash []byte
-	ExpiresAt           time.Time
 	RefreshTokenHash    []byte
 }
 
-// Atomically swaps the refresh token, so a token can only be redeemed once.
+// Atomically swaps the refresh token, so a token can only be redeemed once. A
+// trigger records the old hash in rotated_refresh_tokens. The session keeps the
+// expiry it was created with.
 func (q *Queries) RotateSessionRefreshToken(ctx context.Context, arg RotateSessionRefreshTokenParams) (Session, error) {
-	row := q.db.QueryRow(ctx, rotateSessionRefreshToken, arg.NewRefreshTokenHash, arg.ExpiresAt, arg.RefreshTokenHash)
+	row := q.db.QueryRow(ctx, rotateSessionRefreshToken, arg.NewRefreshTokenHash, arg.RefreshTokenHash)
 	var i Session
 	err := row.Scan(
 		&i.ID,
@@ -213,13 +229,25 @@ func (q *Queries) RotateSessionRefreshToken(ctx context.Context, arg RotateSessi
 
 const useCLIAuthCode = `-- name: UseCLIAuthCode :one
 UPDATE cli_auth_codes SET used_at = now()
-WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE code_hash = $1
+  AND code_challenge = $2
+  AND redirect_uri = $3
+  AND used_at IS NULL
+  AND expires_at > now()
 RETURNING code_hash, user_id, code_challenge, redirect_uri, expires_at, used_at, created_at
 `
 
-// Marks a code used and returns it; returns no rows if it is unknown, used, or expired.
-func (q *Queries) UseCLIAuthCode(ctx context.Context, codeHash []byte) (CliAuthCode, error) {
-	row := q.db.QueryRow(ctx, useCLIAuthCode, codeHash)
+type UseCLIAuthCodeParams struct {
+	CodeHash      []byte
+	CodeChallenge string
+	RedirectUri   string
+}
+
+// Marks a code used and returns it; returns no rows if it is unknown, used,
+// expired, or presented with a different challenge or redirect_uri. A
+// mismatched attempt leaves the code usable.
+func (q *Queries) UseCLIAuthCode(ctx context.Context, arg UseCLIAuthCodeParams) (CliAuthCode, error) {
+	row := q.db.QueryRow(ctx, useCLIAuthCode, arg.CodeHash, arg.CodeChallenge, arg.RedirectUri)
 	var i CliAuthCode
 	err := row.Scan(
 		&i.CodeHash,

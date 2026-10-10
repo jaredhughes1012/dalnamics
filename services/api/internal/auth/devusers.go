@@ -20,8 +20,13 @@ func (s *Service) DevEmails() []string {
 }
 
 // SeedDevUsers creates a passwordless user for every dev email that does not
-// already have an account.
+// already have an account. It fails if any dev email is not a valid address.
 func (s *Service) SeedDevUsers(ctx context.Context) error {
+	for _, email := range s.devEmails {
+		if _, err := normalizeEmail(email); err != nil {
+			return fmt.Errorf("dev email %q: %w", email, err)
+		}
+	}
 	for _, email := range s.devEmails {
 		err := s.q.CreateUserIfNotExists(ctx, storeauth.CreateUserIfNotExistsParams{
 			Email: email,

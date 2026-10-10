@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -18,11 +19,14 @@ import (
 
 // fakeAPI accepts one valid access token and rotates it on refresh.
 type fakeAPI struct {
+	mu              sync.Mutex
 	access, refresh string
 	refreshes       atomic.Int32
 }
 
 func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	switch r.URL.Path {
 	case "/auth/refresh":
@@ -85,6 +89,29 @@ func TestRefreshesExpiredAccessToken(t *testing.T) {
 	saved, err := store.Load(c.BaseURL)
 	require.NoError(t, err)
 	assert.Equal(t, credentials.Credentials{AccessToken: "access-2", RefreshToken: "refresh-2"}, saved, "rotated tokens are persisted")
+}
+
+func TestConcurrentClientsRefreshOnce(t *testing.T) {
+	// Separate clients and stores stand in for separate cli processes, which
+	// share only the credentials directory.
+	api := &fakeAPI{access: "access-1", refresh: "refresh-1"}
+	c, store := newTestClient(t, api)
+	require.NoError(t, store.Save(c.BaseURL, credentials.Credentials{AccessToken: "expired", RefreshToken: "refresh-1"}))
+	other, err := credentials.NewFileStore()
+	require.NoError(t, err)
+	c2, err := New(c.BaseURL, other)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i, client := range []*Client{c, c2} {
+		wg.Go(func() { _, errs[i] = client.Me(context.Background()) })
+	}
+	wg.Wait()
+
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+	assert.EqualValues(t, 1, api.refreshes.Load(), "the second client reuses the first client's rotated tokens")
 }
 
 func TestFailedRefreshReturnsUnauthorized(t *testing.T) {

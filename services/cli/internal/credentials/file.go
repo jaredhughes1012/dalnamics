@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -20,13 +21,9 @@ type FileStore struct {
 // NewFileStore returns a FileStore in $DALNAMICS_CONFIG_DIR, or in
 // <user config dir>/dalnamics.
 func NewFileStore() (*FileStore, error) {
-	dir := os.Getenv(ConfigDirEnv)
-	if dir == "" {
-		base, err := os.UserConfigDir()
-		if err != nil {
-			return nil, err
-		}
-		dir = filepath.Join(base, "dalnamics")
+	dir, err := configDir()
+	if err != nil {
+		return nil, err
 	}
 	return &FileStore{path: filepath.Join(dir, "credentials.json")}, nil
 }
@@ -44,20 +41,27 @@ func (f *FileStore) Load(apiURL string) (Credentials, error) {
 }
 
 func (f *FileStore) Save(apiURL string, c Credentials) error {
-	all, err := f.read()
-	if err != nil {
-		return err
-	}
-	all[apiURL] = c
-	return f.write(all)
+	return f.update(func(all map[string]Credentials) { all[apiURL] = c })
 }
 
 func (f *FileStore) Delete(apiURL string) error {
+	return f.update(func(all map[string]Credentials) { delete(all, apiURL) })
+}
+
+// update applies change to the stored credentials while holding a lock beside
+// the file, so concurrent cli processes do not overwrite each other's entries.
+func (f *FileStore) update(change func(map[string]Credentials)) error {
+	unlock, err := lockFile(context.Background(), f.path+".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	all, err := f.read()
 	if err != nil {
 		return err
 	}
-	delete(all, apiURL)
+	change(all)
 	return f.write(all)
 }
 

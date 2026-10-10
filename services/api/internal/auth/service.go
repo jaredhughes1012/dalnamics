@@ -24,7 +24,7 @@ const (
 
 const (
 	defaultAccessTTL  = 15 * time.Minute
-	defaultRefreshTTL = 30 * 24 * time.Hour
+	defaultSessionTTL = 7 * 24 * time.Hour
 	cliCodeTTL        = time.Minute
 
 	minPasswordLen = 8
@@ -38,9 +38,10 @@ type Config struct {
 	JWTSecret []byte
 	// DevEmails may use DevLogin. Empty disables dev login.
 	DevEmails []string
-	// AccessTTL and RefreshTTL default to 15 minutes and 30 days.
+	// AccessTTL defaults to 15 minutes. SessionTTL, the fixed lifetime of a
+	// session and so of its refresh tokens, defaults to 7 days.
 	AccessTTL  time.Duration
-	RefreshTTL time.Duration
+	SessionTTL time.Duration
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
@@ -51,7 +52,7 @@ type Service struct {
 	jwtSecret  []byte
 	devEmails  []string
 	accessTTL  time.Duration
-	refreshTTL time.Duration
+	sessionTTL time.Duration
 	now        func() time.Time
 }
 
@@ -62,14 +63,14 @@ func NewService(q store.Querier, cfg Config) *Service {
 		jwtSecret:  cfg.JWTSecret,
 		devEmails:  cfg.DevEmails,
 		accessTTL:  cfg.AccessTTL,
-		refreshTTL: cfg.RefreshTTL,
+		sessionTTL: cfg.SessionTTL,
 		now:        cfg.Now,
 	}
 	if s.accessTTL == 0 {
 		s.accessTTL = defaultAccessTTL
 	}
-	if s.refreshTTL == 0 {
-		s.refreshTTL = defaultRefreshTTL
+	if s.sessionTTL == 0 {
+		s.sessionTTL = defaultSessionTTL
 	}
 	if s.now == nil {
 		s.now = time.Now
@@ -154,6 +155,9 @@ func (s *Service) DevLogin(ctx context.Context, email string, client Client) (Se
 	}
 
 	user, err := s.q.GetUserByEmail(ctx, email)
+	if errors.Is(err, store.ErrNoRows) {
+		return Session{}, ErrNotDevUser
+	}
 	if err != nil {
 		return Session{}, fmt.Errorf("get dev user: %w", err)
 	}
@@ -161,18 +165,22 @@ func (s *Service) DevLogin(ctx context.Context, email string, client Client) (Se
 }
 
 // Refresh redeems a refresh token for a new token pair. The presented refresh
-// token is rotated and cannot be used again.
+// token is rotated and cannot be used again; presenting it again means it was
+// copied, so its session is revoked. Refreshing does not extend the session.
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (Tokens, error) {
 	newToken, newHash, err := newOpaqueToken()
 	if err != nil {
 		return Tokens{}, err
 	}
+	hash := hashToken(refreshToken)
 	session, err := s.q.RotateSessionRefreshToken(ctx, storeauth.RotateSessionRefreshTokenParams{
-		RefreshTokenHash:    hashToken(refreshToken),
+		RefreshTokenHash:    hash,
 		NewRefreshTokenHash: newHash,
-		ExpiresAt:           s.now().Add(s.refreshTTL),
 	})
 	if errors.Is(err, store.ErrNoRows) {
+		if _, err := s.q.RevokeSessionByRotatedRefreshToken(ctx, hash); err != nil {
+			return Tokens{}, fmt.Errorf("revoke session of reused refresh token: %w", err)
+		}
 		return Tokens{}, ErrInvalidToken
 	}
 	if err != nil {
@@ -251,15 +259,16 @@ func (s *Service) AuthorizeCLI(ctx context.Context, p Principal, codeChallenge, 
 
 // ExchangeCLICode redeems a code from AuthorizeCLI for a new cli session.
 func (s *Service) ExchangeCLICode(ctx context.Context, code, codeVerifier, redirectURI string) (Session, error) {
-	authCode, err := s.q.UseCLIAuthCode(ctx, hashToken(code))
+	authCode, err := s.q.UseCLIAuthCode(ctx, storeauth.UseCLIAuthCodeParams{
+		CodeHash:      hashToken(code),
+		CodeChallenge: pkceChallenge(codeVerifier),
+		RedirectUri:   redirectURI,
+	})
 	if errors.Is(err, store.ErrNoRows) {
 		return Session{}, ErrInvalidCode
 	}
 	if err != nil {
 		return Session{}, fmt.Errorf("use cli auth code: %w", err)
-	}
-	if authCode.RedirectUri != redirectURI || !verifyPKCE(codeVerifier, authCode.CodeChallenge) {
-		return Session{}, ErrInvalidCode
 	}
 
 	user, err := s.q.GetUserByID(ctx, authCode.UserID)
@@ -278,7 +287,7 @@ func (s *Service) startSession(ctx context.Context, user User, client Client) (S
 		UserID:           user.ID,
 		Client:           string(client),
 		RefreshTokenHash: refreshHash,
-		ExpiresAt:        s.now().Add(s.refreshTTL),
+		ExpiresAt:        s.now().Add(s.sessionTTL),
 	})
 	if err != nil {
 		return Session{}, fmt.Errorf("create session: %w", err)

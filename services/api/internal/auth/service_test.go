@@ -60,7 +60,7 @@ func expectSession(q *mockstore.MockQuerier, user storeauth.User, client Client,
 	id := uuid.New()
 	q.EXPECT().CreateSession(gomock.Any(), gomock.Cond(func(p storeauth.CreateSessionParams) bool {
 		return p.UserID == user.ID && p.Client == string(client) && len(p.RefreshTokenHash) == 32 &&
-			p.ExpiresAt.Equal(clock.Now().Add(defaultRefreshTTL))
+			p.ExpiresAt.Equal(clock.Now().Add(defaultSessionTTL))
 	})).DoAndReturn(func(_ context.Context, p storeauth.CreateSessionParams) (storeauth.Session, error) {
 		return storeauth.Session{ID: id, UserID: p.UserID, Client: p.Client, RefreshTokenHash: p.RefreshTokenHash}, nil
 	})
@@ -181,12 +181,10 @@ func TestLoginStoreError(t *testing.T) {
 }
 
 func TestRefresh(t *testing.T) {
-	s, q, clock := newMockedService(t)
+	s, q, _ := newMockedService(t)
 	session := storeauth.Session{ID: uuid.New(), UserID: uuid.New()}
 	q.EXPECT().RotateSessionRefreshToken(gomock.Any(), gomock.Cond(func(p storeauth.RotateSessionRefreshTokenParams) bool {
-		return string(p.RefreshTokenHash) == string(hashToken("old-token")) &&
-			len(p.NewRefreshTokenHash) == 32 &&
-			p.ExpiresAt.Equal(clock.Now().Add(defaultRefreshTTL))
+		return string(p.RefreshTokenHash) == string(hashToken("old-token")) && len(p.NewRefreshTokenHash) == 32
 	})).Return(session, nil)
 
 	tokens, err := s.Refresh(context.Background(), "old-token")
@@ -201,8 +199,19 @@ func TestRefresh(t *testing.T) {
 func TestRefreshRejectsUnknownToken(t *testing.T) {
 	s, q, _ := newMockedService(t)
 	q.EXPECT().RotateSessionRefreshToken(gomock.Any(), gomock.Any()).Return(storeauth.Session{}, store.ErrNoRows)
+	q.EXPECT().RevokeSessionByRotatedRefreshToken(gomock.Any(), hashToken("unknown")).Return(int64(0), nil)
 
-	_, err := s.Refresh(context.Background(), "used-or-revoked")
+	_, err := s.Refresh(context.Background(), "unknown")
+
+	assert.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestRefreshWithRotatedTokenRevokesSession(t *testing.T) {
+	s, q, _ := newMockedService(t)
+	q.EXPECT().RotateSessionRefreshToken(gomock.Any(), gomock.Any()).Return(storeauth.Session{}, store.ErrNoRows)
+	q.EXPECT().RevokeSessionByRotatedRefreshToken(gomock.Any(), hashToken("rotated")).Return(int64(1), nil)
+
+	_, err := s.Refresh(context.Background(), "rotated")
 
 	assert.ErrorIs(t, err, ErrInvalidToken)
 }
@@ -285,6 +294,15 @@ func TestDevLoginRejects(t *testing.T) {
 	assert.ErrorAs(t, err, &verr)
 }
 
+func TestDevLoginUnseededUser(t *testing.T) {
+	s, q, _ := newMockedService(t, "dev@dalnamics.local")
+	q.EXPECT().GetUserByEmail(gomock.Any(), "dev@dalnamics.local").Return(storeauth.User{}, store.ErrNoRows)
+
+	_, err := s.DevLogin(context.Background(), "dev@dalnamics.local", ClientStudio)
+
+	assert.ErrorIs(t, err, ErrNotDevUser)
+}
+
 func TestSeedDevUsers(t *testing.T) {
 	s, q, _ := newMockedService(t, "dev@dalnamics.local", "e2e@dalnamics.local")
 	q.EXPECT().CreateUserIfNotExists(gomock.Any(), storeauth.CreateUserIfNotExistsParams{Email: "dev@dalnamics.local", Name: "dev"})
@@ -293,6 +311,16 @@ func TestSeedDevUsers(t *testing.T) {
 	require.NoError(t, s.SeedDevUsers(context.Background()))
 	assert.True(t, s.DevLoginEnabled())
 	assert.Equal(t, []string{"dev@dalnamics.local", "e2e@dalnamics.local"}, s.DevEmails())
+}
+
+func TestSeedDevUsersRejectsInvalidEmail(t *testing.T) {
+	s, _ := newTestService(t, "dev@dalnamics.local", "typo-no-at")
+
+	err := s.SeedDevUsers(context.Background())
+
+	var verr *ValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, "email", verr.Field)
 }
 
 const testRedirect = "http://127.0.0.1:5555/callback"
@@ -335,7 +363,9 @@ func TestAuthorizeCLIValidation(t *testing.T) {
 func TestExchangeCLICode(t *testing.T) {
 	s, q, clock := newMockedService(t)
 	user := testUser(nil)
-	q.EXPECT().UseCLIAuthCode(gomock.Any(), hashToken("the-code")).Return(storeauth.CliAuthCode{
+	q.EXPECT().UseCLIAuthCode(gomock.Any(), storeauth.UseCLIAuthCodeParams{
+		CodeHash: hashToken("the-code"), CodeChallenge: challengeFor("verifier"), RedirectUri: testRedirect,
+	}).Return(storeauth.CliAuthCode{
 		UserID: user.ID, CodeChallenge: challengeFor("verifier"), RedirectUri: testRedirect,
 	}, nil)
 	q.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
@@ -348,27 +378,16 @@ func TestExchangeCLICode(t *testing.T) {
 }
 
 func TestExchangeCLICodeRejects(t *testing.T) {
-	valid := storeauth.CliAuthCode{UserID: uuid.New(), CodeChallenge: challengeFor("verifier"), RedirectUri: testRedirect}
-	cases := []struct {
-		name               string
-		code               storeauth.CliAuthCode
-		err                error
-		verifier, redirect string
-	}{
-		{"unknown, used, or expired code", storeauth.CliAuthCode{}, store.ErrNoRows, "verifier", testRedirect},
-		{"wrong verifier", valid, nil, "attacker", testRedirect},
-		{"different redirect", valid, nil, "verifier", "http://127.0.0.1:6666/callback"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			s, q, _ := newMockedService(t)
-			q.EXPECT().UseCLIAuthCode(gomock.Any(), gomock.Any()).Return(tc.code, tc.err)
+	s, q, _ := newMockedService(t)
+	// The store matches the code, challenge, and redirect together, so a wrong
+	// verifier or redirect looks the same as an unknown code.
+	q.EXPECT().UseCLIAuthCode(gomock.Any(), storeauth.UseCLIAuthCodeParams{
+		CodeHash: hashToken("the-code"), CodeChallenge: challengeFor("attacker"), RedirectUri: testRedirect,
+	}).Return(storeauth.CliAuthCode{}, store.ErrNoRows)
 
-			_, err := s.ExchangeCLICode(context.Background(), "the-code", tc.verifier, tc.redirect)
+	_, err := s.ExchangeCLICode(context.Background(), "the-code", "attacker", testRedirect)
 
-			assert.ErrorIs(t, err, ErrInvalidCode)
-		})
-	}
+	assert.ErrorIs(t, err, ErrInvalidCode)
 }
 
 func TestMe(t *testing.T) {

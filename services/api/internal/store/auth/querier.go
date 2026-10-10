@@ -19,10 +19,16 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	RevokeSession(ctx context.Context, id uuid.UUID) error
-	// Atomically swaps the refresh token, so a token can only be redeemed once.
+	// Revokes the session that previously rotated away from a refresh token.
+	RevokeSessionByRotatedRefreshToken(ctx context.Context, tokenHash []byte) (int64, error)
+	// Atomically swaps the refresh token, so a token can only be redeemed once. A
+	// trigger records the old hash in rotated_refresh_tokens. The session keeps the
+	// expiry it was created with.
 	RotateSessionRefreshToken(ctx context.Context, arg RotateSessionRefreshTokenParams) (Session, error)
-	// Marks a code used and returns it; returns no rows if it is unknown, used, or expired.
-	UseCLIAuthCode(ctx context.Context, codeHash []byte) (CliAuthCode, error)
+	// Marks a code used and returns it; returns no rows if it is unknown, used,
+	// expired, or presented with a different challenge or redirect_uri. A
+	// mismatched attempt leaves the code usable.
+	UseCLIAuthCode(ctx context.Context, arg UseCLIAuthCodeParams) (CliAuthCode, error)
 }
 
 var _ Querier = (*Queries)(nil)

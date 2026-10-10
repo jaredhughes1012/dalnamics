@@ -4,6 +4,7 @@ import type { Middleware } from 'openapi-fetch'
 import { api, publicApi, unwrap, type Session, type Tokens, type User } from '@/lib/api/client'
 
 export const AUTH_STORAGE_KEY = 'dalnamics-auth'
+const REFRESH_LOCK = 'dalnamics-auth-refresh'
 
 type AuthState = {
   user?: User
@@ -17,6 +18,11 @@ type AuthState = {
 }
 
 let refreshing: Promise<boolean> | undefined
+
+/** Runs fn while holding a lock shared by every tab, where the browser supports it. */
+function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  return 'locks' in navigator ? navigator.locks.request(REFRESH_LOCK, fn) : fn()
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -41,10 +47,15 @@ export const useAuthStore = create<AuthState>()(
           }
         },
         refresh: () => {
-          // Concurrent 401s share one refresh, since each refresh token is single use.
-          refreshing ??= (async () => {
+          // Each refresh token is single use, and the api revokes the session if
+          // one is reused. So concurrent 401s share one refresh, and tabs take
+          // turns, adopting the tokens another tab rotated while they waited.
+          const stale = get().tokens?.refresh_token
+          refreshing ??= withRefreshLock(async () => {
+            await useAuthStore.persist.rehydrate()
             const refreshToken = get().tokens?.refresh_token
             if (!refreshToken) return false
+            if (refreshToken !== stale) return true
             const { data } = await publicApi.POST('/auth/refresh', { body: { refresh_token: refreshToken } })
             if (!data) {
               set({ user: undefined, tokens: undefined })
@@ -52,7 +63,7 @@ export const useAuthStore = create<AuthState>()(
             }
             set({ tokens: data })
             return true
-          })().finally(() => {
+          }).finally(() => {
             refreshing = undefined
           })
           return refreshing
@@ -62,9 +73,22 @@ export const useAuthStore = create<AuthState>()(
     {
       name: AUTH_STORAGE_KEY,
       partialize: ({ user, tokens }) => ({ user, tokens }),
+      // Stored state replaces the session outright, so a sign-out (stored without
+      // user or tokens) clears the in-memory session too.
+      merge: (persisted, current) => ({
+        ...current,
+        user: undefined,
+        tokens: undefined,
+        ...(persisted as Partial<AuthState> | undefined),
+      }),
     },
   ),
 )
+
+// Follow sign-ins, refreshes, and sign-outs made in other tabs.
+window.addEventListener('storage', (event) => {
+  if (event.key === AUTH_STORAGE_KEY || event.key === null) void useAuthStore.persist.rehydrate()
+})
 
 export const isAuthenticated = () => useAuthStore.getState().tokens !== undefined
 

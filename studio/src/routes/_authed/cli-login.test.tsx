@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { navigation } from '@/lib/navigation'
 import { mockApi, sessionResponse } from '@/test/api'
@@ -52,5 +52,16 @@ describe('cli login', () => {
 
     expect(await screen.findByText('Invalid cli login link')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Authorize' })).not.toBeInTheDocument()
+  })
+
+  it('returns here after signing in again when the session ends', async () => {
+    await signIn()
+    const { router } = renderRoute(cliLoginPath())
+    await screen.findByRole('button', { name: 'Authorize' })
+
+    act(() => useAuthStore.setState({ user: undefined, tokens: undefined }))
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(router.state.location.search).toEqual({ redirect: cliLoginPath() })
   })
 })

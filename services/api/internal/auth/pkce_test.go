@@ -13,11 +13,11 @@ func challengeFor(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func TestVerifyPKCE(t *testing.T) {
-	c := challengeFor("verifier")
+func TestPKCEChallenge(t *testing.T) {
+	// Example from RFC 7636 appendix B.
+	assert.Equal(t, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"))
 
-	assert.True(t, verifyPKCE("verifier", c))
-	assert.False(t, verifyPKCE("other", c))
+	c := challengeFor("verifier")
 	assert.True(t, validChallenge(c))
 	assert.False(t, validChallenge("short"))
 }

@@ -159,6 +159,21 @@ func (mr *MockQuerierMockRecorder) RevokeSession(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSession", reflect.TypeOf((*MockQuerier)(nil).RevokeSession), ctx, id)
 }
 
+// RevokeSessionByRotatedRefreshToken mocks base method.
+func (m *MockQuerier) RevokeSessionByRotatedRefreshToken(ctx context.Context, tokenHash []byte) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeSessionByRotatedRefreshToken", ctx, tokenHash)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RevokeSessionByRotatedRefreshToken indicates an expected call of RevokeSessionByRotatedRefreshToken.
+func (mr *MockQuerierMockRecorder) RevokeSessionByRotatedRefreshToken(ctx, tokenHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSessionByRotatedRefreshToken", reflect.TypeOf((*MockQuerier)(nil).RevokeSessionByRotatedRefreshToken), ctx, tokenHash)
+}
+
 // RotateSessionRefreshToken mocks base method.
 func (m *MockQuerier) RotateSessionRefreshToken(ctx context.Context, arg auth.RotateSessionRefreshTokenParams) (auth.Session, error) {
 	m.ctrl.T.Helper()
@@ -175,16 +190,16 @@ func (mr *MockQuerierMockRecorder) RotateSessionRefreshToken(ctx, arg any) *gomo
 }
 
 // UseCLIAuthCode mocks base method.
-func (m *MockQuerier) UseCLIAuthCode(ctx context.Context, codeHash []byte) (auth.CliAuthCode, error) {
+func (m *MockQuerier) UseCLIAuthCode(ctx context.Context, arg auth.UseCLIAuthCodeParams) (auth.CliAuthCode, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UseCLIAuthCode", ctx, codeHash)
+	ret := m.ctrl.Call(m, "UseCLIAuthCode", ctx, arg)
 	ret0, _ := ret[0].(auth.CliAuthCode)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UseCLIAuthCode indicates an expected call of UseCLIAuthCode.
-func (mr *MockQuerierMockRecorder) UseCLIAuthCode(ctx, codeHash any) *gomock.Call {
+func (mr *MockQuerierMockRecorder) UseCLIAuthCode(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseCLIAuthCode", reflect.TypeOf((*MockQuerier)(nil).UseCLIAuthCode), ctx, codeHash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseCLIAuthCode", reflect.TypeOf((*MockQuerier)(nil).UseCLIAuthCode), ctx, arg)
 }

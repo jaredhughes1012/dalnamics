@@ -50,11 +50,21 @@ func (d *authDoer) Do(req *http.Request) (*http.Response, error) {
 	return d.base.Do(withBearer(retry, refreshed.AccessToken))
 }
 
+// refreshLock serializes refreshes across cli processes, since the api revokes
+// a session when one of its rotated refresh tokens is presented again.
+const refreshLock = "refresh"
+
 // refresh exchanges the refresh token for a new pair and saves it. If another
-// request already rotated the tokens, it uses the newer stored pair instead.
+// request or cli process already rotated the tokens, it uses the newer stored
+// pair instead.
 func (d *authDoer) refresh(ctx context.Context, stale credentials.Credentials) (credentials.Credentials, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	unlock, err := credentials.Lock(ctx, refreshLock)
+	if err != nil {
+		return credentials.Credentials{}, false
+	}
+	defer unlock()
 
 	if current, err := d.creds.Load(d.apiURL); err == nil && current.RefreshToken != stale.RefreshToken {
 		return current, true

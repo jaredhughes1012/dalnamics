@@ -1,0 +1,7 @@
+**/node_modules
+**/.venv
+**/.pio
+.git
+bin
+studio
+harwood0

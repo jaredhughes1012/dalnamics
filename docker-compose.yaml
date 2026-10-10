@@ -1,0 +1,18 @@
+services:
+  api:
+    container_name: api
+    build:
+      context: .
+      dockerfile: services/api/cmd/Dockerfile
+    environment:
+      API_ADDR: ":8080"
+    ports:
+      - "8080:8080"
+      - "2345:2345" # delve
+    cap_add: [SYS_PTRACE]
+    security_opt: [seccomp:unconfined]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3

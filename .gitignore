@@ -1,5 +1,8 @@
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 __pycache__/
 *.py[cod]
+bin/

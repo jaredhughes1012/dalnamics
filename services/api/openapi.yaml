@@ -1,0 +1,351 @@
+openapi: 3.0.3
+info:
+  title: dalnamics api
+  version: 0.1.0
+  description: Front-facing API for studio, the cli, and future agents.
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      summary: Create an account with email and password
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: Log in with email and password
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/refresh:
+    post:
+      operationId: refresh
+      summary: Exchange a refresh token for a new token pair
+      description: The presented refresh token is rotated and cannot be used again.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tokens"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      security:
+        - bearerAuth: []
+      summary: Revoke the current session
+      tags: [auth]
+      responses:
+        "204":
+          description: Session revoked
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/dev-users:
+    get:
+      operationId: listDevUsers
+      summary: List dev user emails (DEBUG only)
+      tags: [auth]
+      responses:
+        "200":
+          description: Dev user emails
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevUsers"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /auth/dev-login:
+    post:
+      operationId: devLogin
+      summary: Log in as a dev user without a password (DEBUG only)
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevLoginRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /auth/cli/authorize:
+    post:
+      operationId: authorizeCli
+      security:
+        - bearerAuth: []
+      summary: Issue a one-time code that a cli exchanges for its own session
+      description: >-
+        Called by studio on behalf of a logged-in user during `cli auth login`.
+        The redirect URI must be a loopback address.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CliAuthorizeRequest"
+      responses:
+        "200":
+          description: Authorization code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CliAuthorizeResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/cli/token:
+    post:
+      operationId: exchangeCliCode
+      summary: Exchange a cli authorization code and PKCE verifier for a session
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CliTokenRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /me:
+    get:
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      summary: Get the authenticated user
+      tags: [users]
+      responses:
+        "200":
+          description: The authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Session:
+      description: Authenticated user and a new token pair
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Session"
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: invalid_credentials
+        message:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Tokens:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+
+    Session:
+      type: object
+      required: [user, tokens]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        tokens:
+          $ref: "#/components/schemas/Tokens"
+
+    SignupRequest:
+      type: object
+      required: [email, name, password]
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    DevUsers:
+      type: object
+      required: [emails]
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+
+    DevLoginRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+        client:
+          $ref: "#/components/schemas/SessionClient"
+
+    SessionClient:
+      type: string
+      description: Kind of client the session is for. Defaults to studio.
+      enum: [studio, cli]
+
+    CliAuthorizeRequest:
+      type: object
+      required: [code_challenge, redirect_uri]
+      properties:
+        code_challenge:
+          type: string
+          description: Base64url (unpadded) SHA-256 of the cli's PKCE verifier
+        redirect_uri:
+          type: string
+          description: Loopback callback the cli is listening on
+
+    CliAuthorizeResponse:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+
+    CliTokenRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri]
+      properties:
+        code:
+          type: string
+        code_verifier:
+          type: string
+        redirect_uri:
+          type: string

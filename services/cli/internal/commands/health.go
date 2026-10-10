@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"dalnamics/services/cli/internal/client"
 )
 
-func newHealthCmd(newClient func() *client.Client) *cobra.Command {
+func newHealthCmd(e *env) *cobra.Command {
 	var asJSON bool
 
 	cmd := &cobra.Command{
@@ -17,7 +15,11 @@ func newHealthCmd(newClient func() *client.Client) *cobra.Command {
 		Short: "Ping the api health check",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res, err := newClient().Health(cmd.Context())
+			c, err := e.client()
+			if err != nil {
+				return err
+			}
+			res, err := c.Health(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("api unhealthy: %w", err)
 			}

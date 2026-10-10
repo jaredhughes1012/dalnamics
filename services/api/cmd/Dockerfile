@@ -1,12 +1,12 @@
 # Build context is the repo root so the go workspace and shared ./internal resolve.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
-COPY go.work ./
+COPY go.work go.work.sum ./
 COPY internal/go.mod internal/
-COPY services/api/go.mod services/api/
+COPY services/api/go.mod services/api/go.sum services/api/
 COPY services/cli/go.mod services/cli/go.sum services/cli/
 RUN go mod download
 

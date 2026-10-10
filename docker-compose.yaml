@@ -1,11 +1,35 @@
 services:
+  postgres:
+    container_name: postgres
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dalnamics
+      POSTGRES_PASSWORD: dalnamics
+      POSTGRES_DB: dalnamics
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dalnamics -d dalnamics"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
   api:
     container_name: api
     build:
       context: .
       dockerfile: services/api/cmd/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       API_ADDR: ":8080"
+      DATABASE_URL: postgres://dalnamics:dalnamics@postgres:5432/dalnamics?sslmode=disable
+      JWT_SECRET: local-dev-secret-not-for-production-use
+      DEBUG: "true"
+      DEV_EMAILS: dev@dalnamics.local,e2e@dalnamics.local
     ports:
       - "8080:8080"
       - "2345:2345" # delve
@@ -13,6 +37,9 @@ services:
     security_opt: [seccomp:unconfined]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
-      interval: 10s
+      interval: 2s
       timeout: 3s
-      retries: 3
+      retries: 15
+
+volumes:
+  pgdata:

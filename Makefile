@@ -1,6 +1,7 @@
 GO_MODULES := ./internal/... ./services/api/... ./services/cli/...
 
-.PHONY: build build-api build-cli build-studio test test-go test-studio vet run-api run-studio up down
+.PHONY: build build-api build-cli build-studio generate test test-go test-studio test-e2e vet lint \
+	db-up run-api run-studio up down
 
 build: build-api build-cli build-studio
 
@@ -13,6 +14,11 @@ build-cli:
 build-studio:
 	cd studio && pnpm install --frozen-lockfile && pnpm build
 
+# Regenerates sqlc queries, mocks, and the OpenAPI server/clients for Go and studio.
+generate:
+	go generate $(GO_MODULES)
+	cd studio && pnpm gen:api
+
 test: test-go test-studio
 
 test-go:
@@ -21,17 +27,28 @@ test-go:
 test-studio:
 	cd studio && pnpm test
 
+# Starts (or reuses) postgres, the api, and studio, then runs Playwright.
+test-e2e:
+	cd test/studio && pnpm install --frozen-lockfile && pnpm test
+
 vet:
 	go vet $(GO_MODULES)
 
-run-api:
-	go run ./services/api/cmd
+lint: vet
+	cd studio && pnpm lint
+
+db-up:
+	docker compose up -d --wait postgres
+
+# Runs the api on the host against the compose postgres, configured by services/api/.env.example.
+run-api: db-up
+	set -a && . ./services/api/.env.example && set +a && go run ./services/api/cmd
 
 run-studio:
 	cd studio && pnpm dev
 
 up:
-	docker compose up --build -d
+	docker compose up --build -d --wait
 
 down:
 	docker compose down

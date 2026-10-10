@@ -1,0 +1,5 @@
+package: apigen
+output: apigen.gen.go
+generate:
+  models: true
+  client: true

@@ -4,7 +4,7 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,33 +12,67 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"dalnamics/services/api/internal/auth"
+	"dalnamics/services/api/internal/config"
 	"dalnamics/services/api/internal/server"
+	"dalnamics/services/api/internal/store"
 )
 
 func main() {
-	addr := flag.String("addr", envOr("API_ADDR", ":8080"), "listen address")
-	flag.Parse()
-
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(*addr, logger); err != nil {
+
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		logger.Error("invalid configuration", "err", err)
+		os.Exit(1)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx, cfg, logger); err != nil {
 		logger.Error("api exited", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr string, logger *slog.Logger) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+	if err := store.Migrate(cfg.DatabaseURL); err != nil {
+		return err
+	}
 
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connect to database: %w", err)
+	}
+	defer pool.Close()
+
+	authSvc := auth.NewService(store.New(pool), auth.Config{
+		JWTSecret: cfg.JWTSecret,
+		DevEmails: cfg.DevEmails,
+	})
+	if cfg.Debug {
+		if err := authSvc.SeedDevUsers(ctx); err != nil {
+			return err
+		}
+		logger.Warn("DEBUG enabled: dev login is available", "dev_emails", cfg.DevEmails)
+	}
+
+	handler, err := server.NewHandler(authSvc, logger)
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           server.NewHandler(),
+		Addr:              cfg.Addr,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	errc := make(chan error, 1)
 	go func() {
-		logger.Info("api listening", "addr", addr)
+		logger.Info("api listening", "addr", cfg.Addr)
 		errc <- srv.ListenAndServe()
 	}()
 
@@ -58,11 +92,4 @@ func run(addr string, logger *slog.Logger) error {
 		return err
 	}
 	return nil
-}
-
-func envOr(key, fallback string) string {
-	if v, ok := os.LookupEnv(key); ok {
-		return v
-	}
-	return fallback
 }

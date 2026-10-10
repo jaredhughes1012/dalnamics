@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS cli_auth_codes;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;
+DROP FUNCTION IF EXISTS set_updated_at();
+DROP EXTENSION IF EXISTS citext;

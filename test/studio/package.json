@@ -1,0 +1,23 @@
+{
+  "name": "studio-e2e",
+  "version": "1.0.0",
+  "description": "Playwright end-to-end tests for studio, the api, and the cli",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.22.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.5"
+  },
+  "private": true
+}

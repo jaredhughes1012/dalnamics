@@ -1,0 +1,10 @@
+package: apigen
+output: apigen.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  # The health check is served by the shared internal/health handler.
+  exclude-operation-ids: [getHealth]

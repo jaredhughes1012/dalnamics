@@ -3,7 +3,9 @@
 The disc horn seats in the pocket on top and screws on through the four holes
 (screws supplied with the horn); fit the horn's centre screw first, since the
 shoulder servo blocks it afterwards. The DS3218 then slides in through the
-window, shaft first, and screws to the plate by its tabs (4x M3).
+window, shaft first, its lead through the notch at the window's top end, and
+bolts to the plate by its tabs: 4 screws in from behind the plate, nuts on top of the
+tabs. Reach the top two through the gap above the servo, from the bracket's open back.
 
 Local frame: origin on the yaw axis at the bracket's top face, with the shoulder
 servo's shaft pointing +X. (On the robot the bracket is turned half a turn, so the
@@ -22,6 +24,8 @@ from harwood0_cad.hardware.motors import (
     STD_SERVO_BODY_H,
     STD_SERVO_BODY_L,
     STD_SERVO_BODY_W,
+    STD_SERVO_LEAD_REACH,
+    STD_SERVO_LEAD_W,
     STD_SERVO_SHAFT_OFFSET,
     STD_SERVO_TAB_HOLES,
     STD_SERVO_TAB_SPAN,
@@ -37,7 +41,6 @@ HALF_W = STD_SERVO_BODY_W / 2 + 4.0
 FACE_X = 15.0  # shoulder servo top face, in this part's frame
 TAB_FACE_X = FACE_X + STD_SERVO_TAB_TOP - STD_SERVO_TAB_T  # the tabs press on this face
 BODY_Z = -SHOULDER_DROP - STD_SERVO_SHAFT_OFFSET  # shoulder servo body centre
-SERVO_SCREW_PILOT_D = p.M3_PILOT_D
 
 
 def yaw_bracket() -> Part:
@@ -53,14 +56,18 @@ def yaw_bracket() -> Part:
 
     plate_x = (TAB_FACE_X - PLATE_T, TAB_FACE_X)
     plate = box(plate_x, (-HALF_W, HALF_W), (bottom, -TOP_T + 0.1))
-    c = p.FIT_CLEARANCE
+    c = p.SERVO_FIT_CLEARANCE
     hl, hw = STD_SERVO_BODY_L / 2 + c, STD_SERVO_BODY_W / 2 + c
     plate -= box((plate_x[0] - 1, plate_x[1] + 1), (-hw, hw), (BODY_Z - hl, BODY_Z + hl))
+    # A notch at the top (shaft) end for the servo's lead, so it slides straight in.
+    lw = STD_SERVO_LEAD_W / 2 + c
+    lead_z = (BODY_Z + hl - 1, BODY_Z + hl + STD_SERVO_LEAD_REACH + c)
+    plate -= box((plate_x[0] - 1, plate_x[1] + 1), (-lw, lw), lead_z)
     along, across = STD_SERVO_TAB_HOLES
     for dz in (-along / 2, along / 2):
         for y in (-across / 2, across / 2):
             plate -= cylinder(
-                SERVO_SCREW_PILOT_D / 2,
+                p.SCREW_CLEARANCE_D / 2,
                 (plate_x[0] - 1, plate_x[1] + 1),
                 axis="x",
                 at=(y, BODY_Z + dz),

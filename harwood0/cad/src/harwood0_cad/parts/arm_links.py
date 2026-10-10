@@ -112,17 +112,18 @@ def upper_arm() -> Part:
 
 def forearm() -> Part:
     # Import here: the gripper module's layout depends on this one's joint stack.
-    from harwood0_cad.parts.gripper import BASE_HALF_Y, BASE_SCREWS, LEG_Z
+    from harwood0_cad.parts.gripper import BASE_HALF_Y, BASE_SCREW_Z, BASE_SCREWS
 
     tip_end = GRIPPER_Y + BASE_HALF_Y
     arm = _bar((0, FOREARM_T), (-8, tip_end - LINK_W / 2), LINK_W / 2)
-    arm += box((0, FOREARM_T), (GRIPPER_Y - BASE_HALF_Y, tip_end), (-LEG_Z[1] - 2, LEG_Z[1] + 2))
+    pad_z = BASE_SCREW_Z + p.SCREW_HEAD_D / 2 + 1.5  # round the base's screw heads
+    arm += box((0, FOREARM_T), (GRIPPER_Y - BASE_HALF_Y, tip_end), (-pad_z, pad_z))
     arm += cylinder(MG90S_HORN_LENGTH / 2 + 2, (0, FOREARM_T), axis="x")
     arm -= _mg90s_horn_pocket(0)
     arm -= _mg90s_mount(FOREARM_T, GRIPPER_Y)
     for y, z in BASE_SCREWS:
-        arm -= cylinder(p.M3_CLEARANCE_D / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z))
-        arm -= cylinder(p.M3_HEAD_D / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
+        arm -= cylinder(p.SCREW_CLEARANCE_D / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z))
+        arm -= cylinder(p.SCREW_HEAD_D / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
     for y in FOREARM_CLIPS:
         arm += _wire_clip(y, 1)
     return arm

@@ -328,7 +328,10 @@ RUNS: tuple[Run, ...] = (
         "inside the hood, through the pass into the column, to the servo driver",
         3,
         _anchored(
-            ("tower", (0.0, YAW_SERVO_BODY_Y - 21.0, YAW_SERVO_FACE_Z + 33.0)),
+            # Up from the notch at the shaft end, back over the servo under the lid.
+            ("tower", (0.0, YAW_SERVO_BODY_Y + 21.5, YAW_SERVO_FACE_Z + 15.0)),
+            ("tower", (0.0, YAW_SERVO_BODY_Y + 22.5, YAW_SERVO_FACE_Z + 38.5)),
+            ("tower", (0.0, YAW_SERVO_BODY_Y - 21.0, YAW_SERVO_FACE_Z + 38.5)),
             *_down_column(YAW_CHANNEL),
         ),
         lead=300.0,
@@ -338,8 +341,12 @@ RUNS: tuple[Run, ...] = (
         "up beside the yaw bracket into the hood, down into the column to the servo driver",
         3,
         _anchored(
-            ("yaw", (23.0, 0.0, -50.0)),
-            ("yaw", (26.0, 17.0, -30.0)),
+            # Out of the notch at the top of the bracket's window, up past the servo's top end,
+            # and over the bracket beside the yaw horn.
+            ("yaw", (-6.0, 0.0, -10.0)),
+            ("yaw", (-7.0, 0.0, -5.0)),
+            ("yaw", (-7.0, 15.0, 0.0)),
+            ("yaw", (-5.0, 17.0, 3.0)),
             *_UP_TO_HOOD,
             *_down_column(SHOULDER_CHANNEL),
         ),

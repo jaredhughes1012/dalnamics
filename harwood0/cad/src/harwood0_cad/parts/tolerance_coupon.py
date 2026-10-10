@@ -3,13 +3,14 @@
 Three rows of holes, each stepping through diameters around one of the sizes the
 robot's screws use. Each row is marked by grooves engraved at its small end:
 
-- 1 groove: M2.5 self-tapping pilot (M2_5_PILOT_D), for the servo driver.
-- 2 grooves: M3 self-tapping pilot (M3_PILOT_D), for almost every other screw.
-- 3 grooves: M3 clearance (M3_CLEARANCE_D, set by FIT_CLEARANCE), for the holes screws pass through.
+- 1 groove: M2.5 heat-set insert hole (M2_5_INSERT_HOLE_D).
+- 2 grooves: M3 heat-set insert hole (M3_INSERT_HOLE_D), for when the structural screws are M3.
+- 3 grooves: M2.5 clearance (M2_5_CLEARANCE_D, set by FIT_CLEARANCE), for the holes screws pass through.
 
 Holes step up by HOLE_STEP from the grooved end; the middle hole of each row is the
-current size. Drive a screw into each pilot hole and pick the one it grips firmly
-without splitting or needing force; push an M3 screw through the clearance holes and
+current size. Press an insert into each insert hole with the iron and pick the one it
+goes in straight, flush and tight, without plastic bulging around it or the insert
+turning when a screw is tightened; push an M2.5 screw through the clearance holes and
 pick the smallest it passes freely. Then shift the matching value in params.py by
 HOLE_STEP for each hole away from the middle, and re-export.
 
@@ -23,7 +24,7 @@ from harwood0_cad.shapes import box, cylinder
 
 HOLE_STEP = 0.1
 HOLE_COUNT = 5
-PITCH = 9.0
+PITCH = 10.0
 THICKNESS = 6.0
 MARK_W = 9.0  # space at the left end of each row for its grooves
 GROOVE_W = 0.8
@@ -31,7 +32,11 @@ GROOVE_PITCH = 1.8
 GROOVE_DEPTH = 0.6
 GROOVE_L = 5.0
 
-ROWS = (p.M2_5_PILOT_D, p.M3_PILOT_D, p.M3_CLEARANCE_D)  # from the back row to the front
+ROWS = (
+    p.M2_5_INSERT_HOLE_D,
+    p.M3_INSERT_HOLE_D,
+    p.M2_5_CLEARANCE_D,
+)  # from the back row to the front
 
 
 def hole_diameters(nominal: float) -> list[float]:

@@ -43,6 +43,24 @@ PARTS: dict[str, Callable[[], Part]] = {
     "chassis_fit_section": chassis_fit_section,
 }
 
+# Which part of the robot each part belongs to, for organising exports. Test prints are
+# not part of the robot.
+PART_GROUPS: dict[str, tuple[str, ...]] = {
+    "body": ("chassis", "top_plate", "table", "track_lip"),
+    "tower": ("carriage", "pinion", "tower", "tower_door", "hood", "hood_lid"),
+    "arm": (
+        "yaw_bracket",
+        "upper_arm",
+        "forearm",
+        "gripper_base",
+        "gripper_gear",
+        "gripper_jaw_front",
+        "gripper_jaw_rear",
+    ),
+    "test": ("tolerance_coupon", "chassis_fit_section"),
+}
+PART_GROUP = {name: group for group, names in PART_GROUPS.items() for name in names}
+
 # Parts modelled in their assembled orientation that print better another way up.
 # Export applies these; anything not listed prints as modelled.
 PRINT_ROTATIONS: dict[str, Location] = {

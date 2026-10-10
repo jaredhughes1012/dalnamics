@@ -1,7 +1,7 @@
 import pytest
 
 from harwood0_cad import params
-from harwood0_cad.parts import PARTS
+from harwood0_cad.parts import PART_GROUPS, PARTS
 from harwood0_cad.printing import print_part
 
 
@@ -20,3 +20,8 @@ def test_part_fits_build_volume(part):
     size = part.bounding_box().size
     for axis, (actual, limit) in zip("XYZ", zip(size, params.BUILD_VOLUME)):
         assert actual <= limit, f"{axis} extent {actual:.1f} mm exceeds build volume {limit} mm"
+
+
+def test_every_part_has_one_export_group():
+    grouped = [name for names in PART_GROUPS.values() for name in names]
+    assert sorted(grouped) == sorted(PARTS)

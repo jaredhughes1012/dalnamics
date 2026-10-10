@@ -151,6 +151,12 @@ STD_SERVO_GEAR_BOSS_D = 13.0
 STD_SERVO_GEAR_BOSS_H = 3.5
 STD_SERVO_SPLINE_D = 6.0
 STD_SERVO_SPLINE_H = 4.0
+# The lead leaves the shaft end, just under the tab, in a grommet that stands
+# proud of the end face before the wires can bend; the window a servo passes through needs
+# a notch for it.
+STD_SERVO_LEAD_W = 5.0
+STD_SERVO_LEAD_H = 4.0
+STD_SERVO_LEAD_REACH = 5.5  # past the end face, measured
 DS3218_MASS = 60.0
 MG996R_MASS = 55.0
 
@@ -173,6 +179,9 @@ def _standard_servo() -> Part:
         for y in (-across / 2, across / 2):
             tabs -= cylinder(STD_SERVO_TAB_HOLE_D / 2, (tab_z[0] - 1, tab_z[1] + 1), at=(cx + x, y))
     body += tabs
+    lead_z = (tab_z[0] - STD_SERVO_LEAD_H, tab_z[0])
+    lead_x = (cx + hl - 0.1, cx + hl + STD_SERVO_LEAD_REACH)
+    body += box(lead_x, (-STD_SERVO_LEAD_W / 2, STD_SERVO_LEAD_W / 2), lead_z)
     body += cylinder(STD_SERVO_GEAR_BOSS_D / 2, (0, STD_SERVO_GEAR_BOSS_H))
     top = STD_SERVO_GEAR_BOSS_H + STD_SERVO_SPLINE_H
     body += cylinder(STD_SERVO_SPLINE_D / 2, (STD_SERVO_GEAR_BOSS_H, top))

@@ -5,15 +5,16 @@ description = "Control API exposing harwood0 robot capabilities"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
+    "httpx2>=2.13",
     "uvicorn[standard]>=0.32",
 ]
 
 [project.scripts]
 harwood0-api = "harwood0_api.__main__:main"
+harwood0-check = "harwood0_api.check:main"
 
 [dependency-groups]
 dev = [
-    "httpx2",
     "pytest>=8",
     "ruff>=0.6",
 ]

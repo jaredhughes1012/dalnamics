@@ -16,17 +16,59 @@ from harwood0_cad.hardware.wheels import COUPLING_L, WHEEL_D, WHEEL_W
 BUILD_VOLUME = (235.5, 256.0, 256.0)
 
 # Extra clearance added to holes and mating faces to absorb FDM shrink/over-extrusion.
-# Calibrate with the tolerance_coupon part and update, along with the pilot sizes below.
+# Calibrate with the tolerance_coupon part and update, along with the insert holes below.
 FIT_CLEARANCE = 0.2
+# Clearance around a servo body passing through a window: larger windows print tighter
+# than small holes (the first layer's squish closes them up), and the servo has to pass easily.
+SERVO_FIT_CLEARANCE = 0.5
 
 # Minimum wall thickness for structural walls (a multiple of a 0.4 mm nozzle line width).
 WALL = 2.4
 
-# Fasteners: M3 is the default structural fastener, self-tapped into printed pilot holes.
+# Fasteners: machine screws into heat-set inserts, or through-bolted with a nut where an
+# insert has no room. Insert holes are sized for common kit inserts (M2.5 x 4 mm, about
+# 3.5 mm across the knurl; M3 x 4 mm, about 4.2 mm); check the maker's recommended hole,
+# and calibrate with the tolerance coupon.
 M3_CLEARANCE_D = 3.2 + FIT_CLEARANCE
-M3_PILOT_D = 2.8  # calibrated with the tolerance coupon
 M3_HEAD_D = 6.0
-M2_5_PILOT_D = 2.3  # M2.5 self-tapping screws, for small boards; calibrated with the coupon
+M3_INSERT_HOLE_D = 4.0
+M3_INSERT_L = 4.0
+M3_NUT_AF = 5.5  # across the flats
+M3_NUT_T = 2.4
+M2_5_CLEARANCE_D = 2.7 + FIT_CLEARANCE
+M2_5_HEAD_D = 4.5
+M2_5_INSERT_HOLE_D = 3.2
+M2_5_INSERT_L = 4.0
+M2_5_NUT_AF = 5.0
+M2_5_NUT_T = 2.0
+INSERT_HOLE_EXTRA = 1.0  # hole depth past the insert, for the plastic it displaces
+INSERT_WALL = 1.5  # plastic left around an insert's hole
+NUT_CLEARANCE = 0.2  # around a nut in a hex pocket
+
+# The structural screws (everything but the motors' face screws, which thread into the
+# gearbox, and the screws supplied with the MG90S servos). M2.5 for now; the final build
+# should use M3 where docs/hardware.md#final-build-screws says, by setting this to "M3".
+STRUCTURAL_SCREW = "M2.5"
+(
+    SCREW_CLEARANCE_D,
+    SCREW_HEAD_D,
+    INSERT_HOLE_D,
+    INSERT_L,
+    NUT_AF,
+    NUT_T,
+) = {
+    "M2.5": (
+        M2_5_CLEARANCE_D,
+        M2_5_HEAD_D,
+        M2_5_INSERT_HOLE_D,
+        M2_5_INSERT_L,
+        M2_5_NUT_AF,
+        M2_5_NUT_T,
+    ),
+    "M3": (M3_CLEARANCE_D, M3_HEAD_D, M3_INSERT_HOLE_D, M3_INSERT_L, M3_NUT_AF, M3_NUT_T),
+}[STRUCTURAL_SCREW]
+INSERT_DEPTH = INSERT_L + INSERT_HOLE_EXTRA
+INSERT_BOSS_D = INSERT_HOLE_D + 2 * INSERT_WALL  # smallest boss or post an insert goes in
 
 # Body: a flat box, rounded at the nose, open on top under a removable work table.
 CHASSIS_L = 240.0
@@ -113,7 +155,7 @@ TOP_PLATE_SNAPS = (
 BATTERY_CENTER = (0.0, 34.0)
 UNO_ORIGIN = (6.6, 0.4)  # board rotated 180 deg: this is its bottom-left corner after rotation
 UNO_STANDOFF_H = 5.0
-BOARD_STANDOFF_D = 6.0
+BOARD_STANDOFF_D = INSERT_BOSS_D
 TB6612_CENTERS = ((46.0, -18.0), (46.0, -42.0))  # front-wheel driver, rear-wheel driver
 UBEC_CENTER = (0.0, 74.0)  # left side bay
 ULN2003_CENTER = (0.0, -78.5)  # right side bay, under the track

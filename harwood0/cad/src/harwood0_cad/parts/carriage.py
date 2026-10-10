@@ -3,9 +3,9 @@
 Two dovetail runners slide in the track's slot. The 28BYJ-48 sits across the
 track with its shaft pointing outboard through the motor plate, driving the
 pinion on the rack in the slot floor. It slides in from the open inboard side
-and screws to the motor plate by its ears (2x M3). Push the pinion onto the
+and screws to the motor plate by its ears (2 screws, into inserts). Push the pinion onto the
 shaft through the window in the base before fitting the carriage to the track.
-The tower screws down onto the deck (4x M3). The tower's wiring comes down
+The tower screws down onto the deck (4 screws, into inserts). The tower's wiring comes down
 through the hole in the deck, leaves by the open inboard side, and becomes the
 ribbon cable, which drops through the slot in the clamp tab at the rear.
 
@@ -32,6 +32,7 @@ from harwood0_cad.arm_geometry import (
     STEPPER_FLANGE_Y,
 )
 from harwood0_cad.hardware.motors import BYJ_BODY_D, BYJ_BODY_H, BYJ_BOSS_D, BYJ_EAR_SPACING
+from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.shapes import box, cylinder
 from harwood0_cad.track_geometry import (
     RACK_FACE_W,
@@ -98,10 +99,13 @@ def carriage() -> Part:
     plate -= cylinder(
         BYJ_BOSS_D / 2 + 0.5, (plate_y[0] - 1, plate_y[1] + 1), axis="y", at=(0, PINION_Z)
     )
+    # Inserts for the ear screws, pressed in from the motor's side; bosses on the far side
+    # make up the plate to the insert's depth.
+    boss_y = (plate_y[1] - p.INSERT_DEPTH, plate_y[0] + 0.1)
     for x in (-BYJ_EAR_SPACING / 2, BYJ_EAR_SPACING / 2):
-        plate -= cylinder(
-            p.M3_PILOT_D / 2, (plate_y[0] - 1, plate_y[1] + 1), axis="y", at=(x, STEPPER_BODY_Z)
-        )
+        at = (x, STEPPER_BODY_Z)
+        plate += cylinder(p.INSERT_BOSS_D / 2, boss_y, axis="y", at=at)
+        plate -= insert_hole(plate_y[1], -1, at, axis="y")
     body += plate
 
     # Room for the stepper body between the motor plate and the deck.
@@ -112,5 +116,5 @@ def carriage() -> Part:
         at=(0, STEPPER_BODY_Z),
     )
     for x, y in CARRIAGE_SCREWS:
-        body -= cylinder(p.M3_PILOT_D / 2, (CARRIAGE_DECK_Z[0] - 4, deck_top + 1), at=(x, y))
+        body -= insert_hole(deck_top, -1, (x, y))
     return body - box(*CABLE_HOLE, (CARRIAGE_DECK_Z[0] - 1, deck_top + 1))

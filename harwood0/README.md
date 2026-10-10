@@ -6,7 +6,8 @@ A developer-focused, 3D-printable mecanum rover with a work table on top and a f
 |---|---|---|
 | [`cad/`](cad/) | Printed parts, hardware models, assembly, renders | Python, [build123d](https://build123d.readthedocs.io/), PyVista |
 | [`firmware/`](firmware/) | Motion controller: drive, arm, track, safety | Arduino Uno R4 WiFi, [PlatformIO](https://platformio.org/) |
-| [`api/`](api/) | Control API exposing robot capabilities | Python, FastAPI, TCP transport to firmware |
+| [`camera/`](camera/) | Camera firmware: JPEG stream over WiFi | ESP32-CAM, [PlatformIO](https://platformio.org/) |
+| [`api/`](api/) | Control API exposing robot capabilities, and a camera viewer | Python, FastAPI, TCP transport to firmware |
 | [`docs/`](docs/) | Architecture, hardware (BOM, wiring, assembly), protocol | Markdown |
 
 See [docs/architecture.md](docs/architecture.md) for how the pieces fit together and why each tool was chosen, and [docs/hardware.md](docs/hardware.md) to build one.
@@ -21,15 +22,19 @@ See [docs/architecture.md](docs/architecture.md) for how the pieces fit together
 
 ```sh
 make test          # all tests: CAD geometry, fit, and cable checks, firmware host tests, API tests
-make cad           # export printed parts to cad/build/*.stl and *.step
+make cad           # export printed parts to cad/build/stl/ and cad/build/step/, by body, tower, and arm
 make render        # render the assembly, parts, and hardware to cad/renders/*.png
 make show          # open the robot and each module in OCP CAD Viewer (VS Code)
 make cables        # cable cut list over the arm's and carriage's full range
 make stability     # mass, centre of mass, and tipping margin
 make firmware      # build firmware for the Uno R4 WiFi
 make flash         # build, upload, and open the serial monitor
+make flash-hello   # flash the connectivity-check firmware, which drives no hardware
+make check-robot   # check the API can reach the robot (HARWOOD0_ROBOT_URL) and read its state
+make camera        # build the camera firmware
+make flash-camera  # flash a camera (CAMERA=nose or arm) and open the serial monitor
 make api-sim       # run the API against the in-process simulator on :8000
-make api           # run the API against real hardware (HARWOOD0_ROBOT_URL)
+make api           # run the API against real hardware (HARWOOD0_ROBOT_URL), viewer on :8000
 ```
 
-Before the first firmware build, copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and set your WiFi credentials.
+Before the first firmware build, copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and set your WiFi credentials. Do the same in `camera/include/` before the first camera build.

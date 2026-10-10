@@ -1,4 +1,4 @@
-.PHONY: test test-cad test-firmware test-api cad render show cables stability firmware flash api api-sim lint
+.PHONY: test test-cad test-firmware test-api cad render show cables stability firmware flash flash-hello check-robot camera flash-camera api api-sim lint
 
 test: test-cad test-firmware test-api
 
@@ -35,6 +35,20 @@ firmware:
 
 flash:
 	cd firmware && pio run -e uno_r4_wifi -t upload -t monitor
+
+flash-hello:
+	cd firmware && pio run -e hello -t upload -t monitor
+
+check-robot:
+	cd api && uv run harwood0-check
+
+CAMERA ?= nose
+
+camera:
+	cd camera && pio run
+
+flash-camera:
+	cd camera && pio run -e $(CAMERA) -t upload -t monitor
 
 api:
 	cd api && uv run harwood0-api

@@ -1,6 +1,6 @@
 # Hardware
 
-harwood0 is an indoor mecanum rover with a work table on top and a four-axis arm (yaw, shoulder, elbow, and a parallel gripper) on a tower that rides a track along the right-hand side. One camera looks forward out of the nose; a second rides on the gripper. It is built for easy assembly rather than strength. Parts snap or screw together, with self-tapping screws and no glue, heat-set inserts, or bearings.
+harwood0 is an indoor mecanum rover with a work table on top and a four-axis arm (yaw, shoulder, elbow, and a parallel gripper) on a tower that rides a track along the right-hand side. One camera looks forward out of the nose; a second rides on the gripper. It is built for easy assembly rather than strength. Parts snap or screw together, with machine screws into heat-set inserts, and no glue or bearings.
 
 ![Assembly](../cad/renders/assembly.png)
 
@@ -68,6 +68,8 @@ References in brackets are item numbers from the original parts list (`BOM.md` a
 | Servo extension leads [S5] | 3 | 3-wire, female to male: 100, 300, and 500 mm | Shoulder, elbow, and gripper servos |
 | Wiring [S5] | | Dupont jumpers (F–F and F–M), 22 AWG silicone wire | See the [cut list](#cut-list) |
 | Double-sided foam tape | | | Holds the battery, UBEC, and TB6612s to the chassis floor |
+| Heat-set inserts | 28 | M2.5 × 4 mm, about 3.5 mm across (common kit size) | The structural screws thread into these; see [fasteners](#fasteners) |
+| Hex nuts | 8 | M2.5 | The yaw and shoulder servos' tab screws |
 | Filament [S7] | ~0.7 kg | PLA or PETG | |
 
 The PCA9685, mecanum wheels, the three extra GA25 motors, and the second TB6612 are additions to the original parts list.
@@ -87,23 +89,50 @@ The elbow sets the payload limit. A servo holding a load continuously should sta
 
 ### Fasteners
 
-Every screw self-taps into a printed pilot hole. Lengths are the longest that fit; shorter ones that still grip 4 mm of plastic also work.
+The structural screws are machine screws into brass heat-set inserts pressed into the printed parts. Where a servo's tab holes leave no room for an insert, the screw goes through and takes a nut. Lengths are the longest that fit. Shorter ones work as long as they reach about 3.5 mm into an insert or right through a nut.
 
-| Where | Qty | Screw |
-|---|---|---|
-| Motors → chassis motor walls | 8 | M3 × 8. Check the gearbox's thread depth first: a screw that bottoms out can jam the gears. |
-| Uno → chassis standoffs | 4 | M3 × 6 |
-| ULN2003 → chassis standoffs | 4 | M3 × 6 |
-| Track lip strips → top plate | 4 | M3 × 6 |
-| Stepper ears → carriage motor plate | 2 | M3 × 6 |
-| Tower column flange → carriage deck | 4 | M3 × 10 |
-| PCA9685 → column bosses | 4 | M2.5 × 5 |
-| Hood → column corner blocks | 4 | M3 × 12, driven down through the hood floor |
-| Yaw servo tabs → hood floor | 4 | M3 × 10, driven up from below |
-| Shoulder servo tabs → yaw bracket | 4 | M3 × 6 |
-| Gripper base → forearm | 2 | M3 × 12, from the forearm's back face |
-| Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos |
-| Horn centre screws, and MG90S tab screws | | Supplied with the servos |
+The structural screws are M2.5 for this build, set by `STRUCTURAL_SCREW` in `cad/src/harwood0_cad/params.py`. That one setting sizes every insert hole, nut pocket, clearance hole, and counterbore. The insert holes are sized for common kit inserts (`M2_5_INSERT_HOLE_D`, 3.2 mm, 5 mm deep). If yours differ, set the maker's recommended hole and the insert's length there. The motors' face screws stay M3, since they thread into the gearbox.
+
+| Where | Qty | Screw | Into | Final build |
+|---|---|---|---|---|
+| Motors → chassis motor walls | 8 | M3 × 8. Check the gearbox's thread depth first: a screw that bottoms out can jam the gears. | Gearbox | |
+| Uno → chassis standoffs | 4 | M2.5 × 6 | Insert | |
+| ULN2003 → chassis standoffs | 4 | M2.5 × 6 | Insert | |
+| Track lip strips → top plate | 4 | M2.5 × 8 | Insert | M3 |
+| Stepper ears → carriage motor plate | 2 | M2.5 × 5 | Insert | |
+| Tower column flange → carriage deck | 4 | M2.5 × 8 | Insert | **M3** |
+| PCA9685 → column bosses | 4 | M2.5 × 6 | Insert | |
+| Hood → column corner blocks | 4 | M2.5 × 8, driven down through the hood floor | Insert | **M3** |
+| Yaw servo tabs → hood floor | 4 | M2.5 × 10, driven up from below | Nut, in the pocket on top of each boss | **M3** |
+| Shoulder servo tabs → yaw bracket | 4 | M2.5 × 10, in from behind the plate | Nut, on top of each tab | **M3** |
+| Gripper base → forearm | 2 | M2.5 × 8, from the forearm's back face | Insert | |
+| Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos | The horn | |
+| Horn centre screws | | Supplied with the servos | The servo's spline | |
+| MG90S tab screws | | Supplied with the servos | Self-tapping into printed pilot holes | |
+
+#### Fitting inserts
+
+Use a soldering iron at about 220 °C for PLA or 240 °C for PETG. A conical insert tip helps, but a plain tip works.
+
+1. Set the insert on its hole, the narrow end down if it has one.
+2. Rest the iron in it and let it sink under its own weight, holding it straight. Don't push.
+3. Stop just before flush. Lift the iron off and press the insert flush with something flat and cold, such as the side of a screwdriver shaft, to set it square while the plastic cools.
+
+A few holes take their insert from a particular side:
+- **PCA9685 bosses.** From the board's side, reaching through the door opening.
+- **Carriage motor plate.** From the stepper's side.
+- **Top plate.** From the entry pocket's floor.
+- **Gripper base.** Into the ends of its legs.
+
+#### Final build screws
+
+M2.5 holds for testing, but the joints that carry the arm should move to M3 for the final build:
+
+- **Must size up (bold above).** The column flange and the hood screws carry the whole arm's weight and its swing. The yaw servo hangs the arm from the hood floor, and the shoulder servo's tabs take its full holding torque. These see the most load and vibration. M3 inserts are larger, so they spread that load through more plastic, and an M3 screw is about 45% stronger.
+- **Worth sizing up.** The track lips: they hold the dovetail closed over the entry pocket, which takes the arm's tipping load when the carriage is at the rear of the track.
+- **Fine as M2.5.** The boards, stepper ears, and gripper base carry almost no load.
+
+To switch, set `STRUCTURAL_SCREW = "M3"`, check `M3_INSERT_HOLE_D` and `M3_INSERT_L` against your M3 inserts, and re-export. That changes every structural hole at once. Reprint every part with structural screw holes, not just the four joints above: the chassis, top plate, track lips, carriage, column, hood, yaw bracket, forearm, and gripper base. The lengths stay the same, and the nuts become M3.
 
 The TB6612 boards, UBEC, and battery are held with double-sided tape, and the nose camera slides into grooves; none need screws. The top plate, table, hood lid, and column door snap or drop in place.
 
@@ -128,11 +157,11 @@ The TB6612 boards, UBEC, and battery are held with double-sided tape, and the no
 | `gripper_gear` | 1 | Flat | |
 | `gripper_jaw_front`, `gripper_jaw_rear` | 1 each | Flat | |
 
-`make cad` writes STL and STEP files to `cad/build/`, already in print orientation and sitting on the bed. All parts print without supports and fit a Bambu Lab X2D with either nozzle: 235.5 × 256 × 256 mm, the smaller volume the auxiliary nozzle can reach. The chassis and top plate lie with their long side along Y to fit.
+`make cad` writes STL files to `cad/build/stl/` and STEP files to `cad/build/step/`, each sorted into `body/`, `tower/`, `arm/`, and `test/` folders, already in print orientation and sitting on the bed. All parts print without supports and fit a Bambu Lab X2D with either nozzle: 235.5 × 256 × 256 mm, the smaller volume the auxiliary nozzle can reach. The chassis and top plate lie with their long side along Y to fit.
 
 ### Print settings
 
-- **Material.** PLA or PETG. PETG's springier snap arms and door tongues survive more cycles.
+- **Material.** PLA or PETG. PETG's springier snap arms survive more cycles.
 - **Layers and walls.** 0.4 mm nozzle, 0.2 mm layers, 3 walls, and 4 top and bottom layers.
 - **Infill.**
   - 20% gyroid for the chassis, top plate, and table.
@@ -140,9 +169,9 @@ The TB6612 boards, UBEC, and battery are held with double-sided tape, and the no
   - 100% for the pinion, gripper gear, and jaws: small gears and racks need solid teeth.
 - **Fit.** Print the `tolerance_coupon` first and tune `cad/src/harwood0_cad/params.py` before printing the large parts.
   - The coupon has three rows of five holes, each stepping 0.1 mm up from the end marked with grooves. The middle hole of each row is the current size.
-  - **1 groove: M2.5 pilot** (`M2_5_PILOT_D`, 2.3 mm). Drive an M2.5 screw into each hole and pick the one it grips firmly without needing force or splitting the plastic.
-  - **2 grooves: M3 pilot** (`M3_PILOT_D`, 2.8 mm). Test it the same way with an M3 screw.
-  - **3 grooves: M3 clearance** (3.2 mm + `FIT_CLEARANCE`, 0.2 mm). Pick the smallest hole an M3 screw passes through freely. `FIT_CLEARANCE` also sizes every slot and sliding fit, so it is the most important of the three.
+  - **1 groove: M2.5 insert hole** (`M2_5_INSERT_HOLE_D`, 3.2 mm). Press an insert into each hole (see [fitting inserts](#fitting-inserts)). Pick the one it goes into straight and flush, without plastic bulging up around it, and doesn't turn when a screw is tightened into it.
+  - **2 grooves: M3 insert hole** (`M3_INSERT_HOLE_D`, 4.0 mm). Only needed before switching to M3; test it the same way.
+  - **3 grooves: M2.5 clearance** (2.7 mm + `FIT_CLEARANCE`, 0.2 mm). Pick the smallest hole an M2.5 screw passes through freely. `FIT_CLEARANCE` also sizes every slot and sliding fit, so it matters most.
   - Shift each value by 0.1 mm for every hole away from the middle, and re-export.
 
 ## Wiring
@@ -210,8 +239,8 @@ From `cd cad && uv run harwood0-cables`. **Longest** is the longest path over ev
 
 | Run | Wires | Longest (mm) | Cut (mm) | Notes |
 |---|---|---|---|---|
-| Yaw servo | 3 | 120 | 180 | Own 300 mm lead is enough; coil the excess in the hood |
-| Shoulder servo | 3 | 291 | 360 | Own 300 mm lead + 100 mm extension |
+| Yaw servo | 3 | 190 | 250 | Own 300 mm lead is enough; coil the excess in the hood |
+| Shoulder servo | 3 | 287 | 360 | Own 300 mm lead + 100 mm extension |
 | Elbow servo | 3 | 448 | 540 | Own 250 mm lead + 300 mm extension |
 | Gripper servo | 3 | 585 | 690 | Own 250 mm lead + 500 mm extension |
 | Arm camera power | 2 | 546 | 650 | Female ends on both |
@@ -226,11 +255,71 @@ From `cd cad && uv run harwood0-cables`. **Longest** is the longest path over ev
 | Front motors | 2 each | 92 | 150 | |
 | Rear motors | 2 each | 163 | 220 | |
 
+## Connectivity check
+
+Before wiring anything, check the Uno joins your WiFi and the API can reach it. The `hello` firmware serves the same protocol as the robot firmware but drives no pins or I2C, so it runs on a bare board. It accepts motion commands and ignores them.
+
+1. Copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and set your WiFi credentials. The Uno joins 2.4 GHz networks only.
+2. Plug the Uno in over USB and run `make flash-hello`. The serial monitor shows the board joining WiFi and its address:
+
+   ```
+   harwood0 hello 0.2.0-hello
+   wifi module firmware 0.4.1
+   connecting to your-network...
+   connected, rssi -52 dBm, tcp://192.168.1.50:7777
+   ```
+
+   It then logs the WiFi status and request count every 10 s.
+3. From the laptop, run `HARWOOD0_ROBOT_URL=tcp://192.168.1.50:7777 make check-robot`:
+
+   ```
+   harwood0 check: tcp://192.168.1.50:7777
+     connect    ok    41 ms, firmware up 12.3 s
+     info       ok    harwood0 firmware 0.2.0-hello, protocol 1
+     state      ok    drive stopped, arm limp, track unhomed
+     ping x20   ok    min 6 / median 9 / max 38 ms
+   ```
+
+   It exits non-zero and names the failing step if anything goes wrong. `make api` with the same `HARWOOD0_ROBOT_URL` then serves the robot over HTTP at `http://127.0.0.1:8000/docs`.
+
+If it can't connect, check the laptop is on the same network and that the network doesn't isolate clients from each other (guest networks often do). You can also try `nc 192.168.1.50 7777` and type `{"id":1,"cmd":"ping"}`. Round trips well over 100 ms suggest a weak signal: the firmware's command timeout is 1 s, and the API's heartbeat pings every 0.3 s.
+
+Run `make flash` to go back to the robot firmware.
+
+## Camera bring-up
+
+Both cameras run the firmware in `camera/`. Each build names its camera, which sets its hostname: `harwood0-nose.local` or `harwood0-arm.local`. Bring each one up on the bench before it goes in the robot.
+
+1. Copy `camera/include/secrets.example.h` to `camera/include/secrets.h` and set the same WiFi credentials as the Uno.
+2. The AI-Thinker board has no USB port. Seat it on an ESP32-CAM-MB programmer board and plug that in, then run `make flash-camera CAMERA=nose`. If the upload can't connect, hold the MB board's IO0 button, tap RST, and release IO0.
+   - Without an MB board, use a USB-serial adapter:
+     - Connect its 5V to 5V, GND to GND, TX to U0R, and RX to U0T.
+     - Jumper IO0 to GND and press RST to enter the bootloader.
+     - Remove the jumper and press RST again to run.
+3. The serial monitor shows the camera joining WiFi and its addresses:
+
+   ```
+   harwood0 camera nose 0.1.0
+   connecting to your-network...
+   connected, rssi -55 dBm
+   status  http://harwood0-nose.local/  (http://192.168.1.51/)
+   stream  http://harwood0-nose.local:81/stream
+   ```
+
+   Open the status address in a browser to check it is reachable. `/capture` there returns one JPEG.
+4. Run `make api`, and open `http://127.0.0.1:8000/` for the viewer. The API finds the cameras by hostname. If mDNS doesn't resolve on your network, use the IP address instead: `HARWOOD0_NOSE_CAMERA_URL=http://192.168.1.51:81/stream make api`.
+
+Each camera streams to one client at a time, and the API holds that connection while it runs. Watch through the viewer, or `/cameras/nose/stream`, rather than the camera's own stream address.
+
+If the image is upside down or mirrored for how the module is mounted, set `kVFlip` or `kHMirror` in `camera/src/main.cpp` and re-flash. If the board resets as WiFi starts ("Brownout detector was triggered" in the log), its supply is sagging: try a different USB port or cable. In the robot it runs from the UBEC (see [power](#power)).
+
 ## Assembly order
 
 The order matters in a few places, marked **Order**: some screws can't be reached once the next part is on.
 
-1. **Tolerance coupon.** Print the `tolerance_coupon` and tune the pilot sizes and `FIT_CLEARANCE` (see [print settings](#print-settings)).
+1. **Tolerance coupon and inserts.**
+   - Print the `tolerance_coupon` and tune the insert hole size and `FIT_CLEARANCE` (see [print settings](#print-settings)).
+   - Press the inserts into each printed part before assembling it (see [fitting inserts](#fitting-inserts)): the chassis standoffs, the top plate's entry pocket, the carriage deck and motor plate, the column's corner blocks and PCA9685 bosses, and the gripper base's legs.
 2. **Chassis.**
    - Lower each motor in from above so its boss enters the motor-wall hole and its can rests on the saddle. Fit its two face screws.
    - Push the wheel couplings onto the shafts, following the [orientation rule](#mecanum-wheel-orientation).
@@ -251,7 +340,8 @@ The order matters in a few places, marked **Order**: some screws can't be reache
    - Thread the ribbon up through the column's open base, then screw the column's flange onto the carriage deck.
    - Plug the ribbon into the PCA9685: SDA, SCL, VCC, and GND to the bus header, and the 22 AWG pair into the V+ terminal.
 8. **Hood.** **Order**: the yaw servo's tab screws go in from below, so fit them before the hood goes on the column.
-   - Push the yaw servo up into the hood, shaft down, and screw its tabs to the floor.
+   - Push the yaw servo up into the hood, shaft down, with its lead through the notch at the front end of the window.
+   - Drop a nut into the pocket on top of each tab boss. Screw up through each tab into its nut.
    - Feed its lead down through the pass in the floor.
    - Screw the hood onto the column through the hood floor, with the lid off.
 9. **Centre the servos** before fitting any horn, so each joint's zero lands where the firmware expects:
@@ -261,7 +351,8 @@ The order matters in a few places, marked **Order**: some screws can't be reache
 10. **Yaw bracket.**
     - Seat the yaw servo's disc horn in the pocket on top of the bracket and screw it on.
     - **Order**: fit the horn's centre screw onto the servo now, with the bracket pointing across the table (yaw 0). The shoulder servo blocks it afterwards.
-    - Slide the shoulder servo in through the bracket's window, shaft first, and screw its tabs to the plate.
+    - Slide the shoulder servo in through the bracket's window, shaft first, with its lead through the notch at the window's top end.
+    - Bolt its tabs to the plate: hold a nut on top of each tab and drive the screw in from behind the plate. Reach the top two through the gap above the servo, from the bracket's open back.
 11. **Upper arm.**
     - Slide the elbow servo through its window, shaft first, and screw its tabs on.
     - Seat the shoulder's disc horn in the pocket on the upper arm's back face and screw it on.
@@ -277,7 +368,7 @@ The order matters in a few places, marked **Order**: some screws can't be reache
     - Press the elbow, gripper, and camera leads into the link clips.
     - Route them behind the shoulder and over the yaw bracket into the hood, then down the column to channels 2–4.
     - Check every lead stays clear as you swing each joint through its range by hand, with the power off.
-    - Snap on the hood lid and the column door.
+    - Snap on the hood lid. Fit the column door: hook its top behind the opening's top edge, then swing the bottom in until both latch barbs click through their slots. To open it, push the two barbs towards the middle and swing the bottom out.
 14. **Calibrate:** see below.
 
 ## Calibration

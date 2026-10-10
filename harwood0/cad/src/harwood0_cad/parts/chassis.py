@@ -38,6 +38,7 @@ from harwood0_cad.hardware.motors import (
     GA25_GEARBOX_L,
 )
 from harwood0_cad.parts.body import body_plan
+from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.parts.snaps import snap_arms
 from harwood0_cad.shapes import box, cylinder
 
@@ -117,7 +118,7 @@ def _board_standoffs() -> Part:
     for x, y in standoffs:
         standoff = cylinder(p.BOARD_STANDOFF_D / 2, (FLOOR - 0.1, top), at=(x, y))
         mounts = standoff if mounts is None else mounts + standoff
-        mounts -= cylinder(p.M3_PILOT_D / 2, (FLOOR, top + 1), at=(x, y))
+        mounts -= insert_hole(top, -1, (x, y))
     return mounts
 
 

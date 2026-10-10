@@ -1,10 +1,14 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.resources import files
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
+import httpx2 as httpx
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
+from harwood0_api.camera import Camera, CameraStatus, mjpeg_part
 from harwood0_api.config import Settings
 from harwood0_api.robot import (
     ArmTargets,
@@ -17,6 +21,9 @@ from harwood0_api.robot import (
 )
 from harwood0_api.transport import RobotError, RobotUnavailable, make_transport
 
+# How long /cameras/{name}/frame waits for a frame before giving up.
+FRAME_TIMEOUT_S = 5.0
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
@@ -25,7 +32,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         transport = make_transport(settings)
         app.state.robot = Robot(transport)
-        yield
+        async with httpx.AsyncClient() as client:
+            app.state.cameras = {
+                name: Camera(name, url, client) for name, url in settings.camera_urls.items()
+            }
+            yield
+            await asyncio.gather(*(camera.close() for camera in app.state.cameras.values()))
         await transport.close()
 
     app = FastAPI(title="harwood0", lifespan=lifespan)
@@ -76,5 +88,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/robot/state", summary=Robot.state.__doc__)
     async def state(robot: RobotDep) -> RobotState:
         return await robot.state()
+
+    def get_camera(name: str, request: Request) -> Camera:
+        camera = request.app.state.cameras.get(name)
+        if camera is None:
+            raise HTTPException(status_code=404, detail=f"no camera named {name!r}")
+        return camera
+
+    CameraDep = Annotated[Camera, Depends(get_camera)]
+
+    @app.get("/cameras", summary="List the cameras and whether each is streaming.")
+    async def cameras(request: Request) -> list[CameraStatus]:
+        return [camera.status() for camera in request.app.state.cameras.values()]
+
+    @app.get("/cameras/{name}", summary="Report one camera's connection and frame rate.")
+    async def camera_status(camera: CameraDep) -> CameraStatus:
+        return camera.status()
+
+    @app.get(
+        "/cameras/{name}/frame",
+        summary="The camera's latest frame as a JPEG.",
+        response_class=Response,
+        responses={200: {"content": {"image/jpeg": {}}}},
+    )
+    async def camera_frame(camera: CameraDep) -> Response:
+        try:
+            frame = await asyncio.wait_for(camera.frame(), FRAME_TIMEOUT_S)
+        except TimeoutError:
+            status = camera.status()
+            return JSONResponse(
+                status_code=503, content={"error": "camera_unavailable", "detail": status.error}
+            )
+        return Response(frame.jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get(
+        "/cameras/{name}/stream",
+        summary="The camera's video as MJPEG (multipart/x-mixed-replace), for an <img> tag.",
+        response_class=StreamingResponse,
+    )
+    async def camera_stream(camera: CameraDep) -> StreamingResponse:
+        async def parts() -> AsyncIterator[bytes]:
+            async for frame in camera.frames():
+                yield mjpeg_part(frame.jpeg)
+
+        return StreamingResponse(
+            parts(),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    viewer = files("harwood0_api").joinpath("viewer.html").read_text()
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def index() -> str:
+        return viewer
 
     return app

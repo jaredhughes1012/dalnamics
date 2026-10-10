@@ -14,7 +14,7 @@ it lifting. A gear rack runs along the slot floor for the carriage's pinion.
 
 At the slot's rear end is an entry pocket with straight walls: lower the carriage
 in there and slide it forward, then drop the two lip strips into the pocket and
-screw them down (2x M3 each) to rebuild the dovetail. Both ends of the slot are
+screw them down (2 screws each, into inserts) to rebuild the dovetail. Both ends of the slot are
 closed, so they are the carriage's end stops.
 
 Local frame: the global XY origin, with Z=0 at the plate underside.
@@ -27,6 +27,7 @@ from build123d import Axis, Part, Polyline, extrude, fillet, make_face
 
 from harwood0_cad import params as p
 from harwood0_cad.parts.body import body_plan
+from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.parts.snaps import snap_slots
 from harwood0_cad.shapes import box, cylinder
 from harwood0_cad.track_geometry import (
@@ -106,7 +107,10 @@ def top_plate() -> Part:
     plate += _rack(SLOT_X)
     for x in (POCKET_X[0] + LIP_SCREW_INSET, POCKET_X[1] - LIP_SCREW_INSET):
         for y in (SLOT_Y - LIP_SCREW_Y, SLOT_Y + LIP_SCREW_Y):
-            plate -= cylinder(p.M3_PILOT_D / 2, (-1, SLOT_FLOOR_Z + 0.1), at=(x, y))
+            # Inserts pressed in from the pocket floor, on bosses under the plate.
+            boss_z = (SLOT_FLOOR_Z - p.INSERT_DEPTH, 0.1)
+            plate += cylinder(p.INSERT_BOSS_D / 2, boss_z, at=(x, y))
+            plate -= insert_hole(SLOT_FLOOR_Z, -1, (x, y))
 
     plate -= snap_slots()
 

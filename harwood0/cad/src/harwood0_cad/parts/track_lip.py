@@ -2,7 +2,7 @@
 
 Each strip rebuilds one sloped wall of the dovetail, so the carriage can run over
 the pocket like the rest of the slot. Print two; on the robot the second is
-turned half a turn to fill the other side. Each screws down with 2x M3.
+turned half a turn to fill the other side. Each screws down with 2 screws.
 
 Local frame: global X and Z, with Y measured from the slot centreline; this strip
 fills the +Y side. Printed lying on its outer face.
@@ -38,6 +38,8 @@ def track_lip() -> Part:
     )
     lip = extrude(make_face(profile), amount=length, dir=(1, 0, 0))
     for x in (LIP_SCREW_INSET - c, length - LIP_SCREW_INSET + c):
-        lip -= cylinder(p.M3_CLEARANCE_D / 2, (SLOT_FLOOR_Z - 1, TRACK_T + 1), at=(x, LIP_SCREW_Y))
-        lip -= cylinder(p.M3_HEAD_D / 2 + 0.2, (TRACK_T - 2.5, TRACK_T + 1), at=(x, LIP_SCREW_Y))
+        lip -= cylinder(
+            p.SCREW_CLEARANCE_D / 2, (SLOT_FLOOR_Z - 1, TRACK_T + 1), at=(x, LIP_SCREW_Y)
+        )
+        lip -= cylinder(p.SCREW_HEAD_D / 2 + 0.2, (TRACK_T - 2.5, TRACK_T + 1), at=(x, LIP_SCREW_Y))
     return lip

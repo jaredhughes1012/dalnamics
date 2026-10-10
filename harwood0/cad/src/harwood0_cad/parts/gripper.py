@@ -1,7 +1,8 @@
 """Parallel gripper: base, gear, and the two jaws.
 
 The gripper servo is screwed into the forearm first. The base then screws onto the
-forearm over it (2x M3 from the forearm's back face), with the servo's spline
+forearm over it (2 screws from the forearm's back face,
+into inserts in its legs), with the servo's spline
 coming up through the centre. The gear takes the servo horn, with its arms trimmed
 to GRIPPER_HORN_L, in a pocket on its back face and is held by the horn screw. Each jaw is a rack whose dovetail
 tongue slides into a groove in the base from the side; the front jaw meshes on
@@ -52,6 +53,7 @@ from harwood0_cad.hardware.motors import (
     MG90S_HORN_ARM_W,
     MG90S_HORN_HUB_D,
 )
+from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.shapes import box, cylinder
 
 TONGUE_W = (3.5, 5.5)  # dovetail width at the base's top face, and at the groove bottom
@@ -61,10 +63,12 @@ BASE_HALF_Z = 12.0
 FINGER_POINTS = 12
 BASE_HALF_Y = RACK_ROOT + RACK_BODY_T + 1.5
 LEG_Z = (MG90S_BODY_W / 2 + 0.6, MG90S_BODY_W / 2 + 3.2)  # legs either side of the servo body
-# Two screws from the forearm's back face, one into each leg at opposite ends.
+# Two screws from the forearm's back face, one into an insert in each leg at opposite ends.
+# The legs are too thin for an insert, so each gets a boss, kept clear of the servo body.
+BASE_SCREW_Z = LEG_Z[0] + p.INSERT_BOSS_D / 2
 BASE_SCREWS = (
-    (GRIPPER_Y - BASE_HALF_Y + 4, sum(LEG_Z) / 2),
-    (GRIPPER_Y + BASE_HALF_Y - 4, -sum(LEG_Z) / 2),
+    (GRIPPER_Y - BASE_HALF_Y + 4, BASE_SCREW_Z),
+    (GRIPPER_Y + BASE_HALF_Y - 4, -BASE_SCREW_Z),
 )
 
 # Arm camera: its PCB stands across the back of the base with its long axis along X, the
@@ -109,7 +113,9 @@ def gripper_base() -> Part:
         z = sorted((side * LEG_Z[0], side * LEG_Z[1]))
         floor += box((FOREARM_T, GRIPPER_BASE_X[0] + 0.1), (y0, y1), z)
     for y, z in BASE_SCREWS:
-        floor -= cylinder(p.M3_PILOT_D / 2, (FOREARM_T - 1, FOREARM_T + 10), axis="x", at=(y, z))
+        boss_x = (FOREARM_T, GRIPPER_BASE_X[0] + 0.1)
+        floor += cylinder(p.INSERT_BOSS_D / 2, boss_x, axis="x", at=(y, z))
+        floor -= insert_hole(FOREARM_T, 1, (y, z), axis="x")
     return floor + _camera_cradle()
 
 

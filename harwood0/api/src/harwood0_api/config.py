@@ -12,8 +12,16 @@ class Settings:
     # How often to ping the firmware while connected, to keep its 1 s command timeout from
     # stopping motions that outlast a request. 0 disables it.
     heartbeat_s: float = 0.3
+    # MJPEG stream URLs of the cameras (camera/ firmware); empty leaves that camera out.
+    nose_camera_url: str = "http://harwood0-nose.local:81/stream"
+    arm_camera_url: str = "http://harwood0-arm.local:81/stream"
     host: str = "127.0.0.1"
     port: int = 8000
+
+    @property
+    def camera_urls(self) -> dict[str, str]:
+        urls = {"nose": self.nose_camera_url, "arm": self.arm_camera_url}
+        return {name: url for name, url in urls.items() if url}
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -24,6 +32,8 @@ class Settings:
                 os.environ.get("HARWOOD0_REQUEST_TIMEOUT_S", defaults.request_timeout_s)
             ),
             heartbeat_s=float(os.environ.get("HARWOOD0_HEARTBEAT_S", defaults.heartbeat_s)),
+            nose_camera_url=os.environ.get("HARWOOD0_NOSE_CAMERA_URL", defaults.nose_camera_url),
+            arm_camera_url=os.environ.get("HARWOOD0_ARM_CAMERA_URL", defaults.arm_camera_url),
             host=os.environ.get("HARWOOD0_HOST", defaults.host),
             port=int(os.environ.get("HARWOOD0_PORT", defaults.port)),
         )

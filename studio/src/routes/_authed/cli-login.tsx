@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { CenteredPage } from '@/components/centered-page'
 import { CliAuthorizeCard, type CliLoginParams } from '@/components/cli-authorize-card'
 
 export const Route = createFileRoute('/_authed/cli-login')({
@@ -11,5 +12,9 @@ export const Route = createFileRoute('/_authed/cli-login')({
 })
 
 function CliLogin() {
-  return <CliAuthorizeCard {...Route.useSearch()} />
+  return (
+    <CenteredPage>
+      <CliAuthorizeCard {...Route.useSearch()} />
+    </CenteredPage>
+  )
 }

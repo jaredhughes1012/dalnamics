@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
 import { AuthCard } from '@/components/auth-card'
+import { CenteredPage } from '@/components/centered-page'
 import { DevLoginButtons } from '@/components/dev-login-buttons'
 import { LoginForm } from '@/components/login-form'
 import { safeRedirect } from '@/lib/redirect'
@@ -23,20 +24,22 @@ function Login() {
   const onSuccess = () => router.history.push(safeRedirect(target))
 
   return (
-    <AuthCard
-      title="Log in"
-      description="Log in to dalnamics studio."
-      footer={
-        <span>
-          No account?{' '}
-          <Link to="/signup" search={{ redirect: target }} className="underline">
-            Create one
-          </Link>
-        </span>
-      }
-    >
-      <LoginForm onSuccess={onSuccess} />
-      <DevLoginButtons onSuccess={onSuccess} />
-    </AuthCard>
+    <CenteredPage>
+      <AuthCard
+        title="Log in"
+        description="Log in to dalnamics studio."
+        footer={
+          <span>
+            No account?{' '}
+            <Link to="/signup" search={{ redirect: target }} className="underline">
+              Create one
+            </Link>
+          </span>
+        }
+      >
+        <LoginForm onSuccess={onSuccess} />
+        <DevLoginButtons onSuccess={onSuccess} />
+      </AuthCard>
+    </CenteredPage>
   )
 }

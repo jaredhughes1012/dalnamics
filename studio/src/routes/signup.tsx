@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
 import { AuthCard } from '@/components/auth-card'
+import { CenteredPage } from '@/components/centered-page'
 import { SignupForm } from '@/components/signup-form'
 import { safeRedirect } from '@/lib/redirect'
 import { isAuthenticated } from '@/stores/auth'
@@ -21,19 +22,21 @@ function Signup() {
   const router = useRouter()
 
   return (
-    <AuthCard
-      title="Create an account"
-      description="Sign up with your email."
-      footer={
-        <span>
-          Have an account?{' '}
-          <Link to="/login" search={{ redirect: target }} className="underline">
-            Log in
-          </Link>
-        </span>
-      }
-    >
-      <SignupForm onSuccess={() => router.history.push(safeRedirect(target))} />
-    </AuthCard>
+    <CenteredPage>
+      <AuthCard
+        title="Create an account"
+        description="Sign up with your email."
+        footer={
+          <span>
+            Have an account?{' '}
+            <Link to="/login" search={{ redirect: target }} className="underline">
+              Log in
+            </Link>
+          </span>
+        }
+      >
+        <SignupForm onSuccess={() => router.history.push(safeRedirect(target))} />
+      </AuthCard>
+    </CenteredPage>
   )
 }

@@ -99,7 +99,8 @@ describe('login', () => {
     await useAuthStore.getState().login('jane@example.com', 'hunter22')
     renderRoute('/')
 
-    await user.click(await screen.findByRole('button', { name: 'Log out' }))
+    await user.click(await screen.findByRole('button', { name: 'Account' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
 
     expect(await screen.findByRole('button', { name: 'Log in' })).toBeInTheDocument()
     expect(useAuthStore.getState().tokens).toBeUndefined()

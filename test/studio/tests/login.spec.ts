@@ -18,7 +18,8 @@ test('log in with email and password, then log out', async ({ page, request }) =
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByRole('heading', { name: 'Hello, Grace Hopper' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Log out' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Log out' }).click()
   await expect(page).toHaveURL(/\/login/)
 
   await page.goto('/')

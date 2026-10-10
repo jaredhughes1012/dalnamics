@@ -12,8 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
-import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
 import { Route as AuthedCliLoginRouteImport } from './routes/_authed/cli-login'
+import { Route as AuthedAppIndexRouteImport } from './routes/_authed/_app/index'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -29,9 +30,8 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedIndexRoute = AuthedIndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthedAppRoute = AuthedAppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedCliLoginRoute = AuthedCliLoginRouteImport.update({
@@ -39,39 +39,46 @@ const AuthedCliLoginRoute = AuthedCliLoginRouteImport.update({
   path: '/cli-login',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAppIndexRoute = AuthedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedAppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthedIndexRoute
+  '/': typeof AuthedAppIndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/cli-login': typeof AuthedCliLoginRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof AuthedAppIndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/cli-login': typeof AuthedCliLoginRoute
-  '/': typeof AuthedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/_authed/_app': typeof AuthedAppRouteWithChildren
   '/_authed/cli-login': typeof AuthedCliLoginRoute
-  '/_authed/': typeof AuthedIndexRoute
+  '/_authed/_app/': typeof AuthedAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/login' | '/signup' | '/cli-login'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/signup' | '/cli-login' | '/'
+  to: '/' | '/login' | '/signup' | '/cli-login'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
     | '/signup'
+    | '/_authed/_app'
     | '/_authed/cli-login'
-    | '/_authed/'
+    | '/_authed/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -103,11 +110,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/': {
-      id: '/_authed/'
-      path: '/'
+    '/_authed/_app': {
+      id: '/_authed/_app'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthedIndexRouteImport
+      preLoaderRoute: typeof AuthedAppRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/cli-login': {
@@ -117,17 +124,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCliLoginRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/_app/': {
+      id: '/_authed/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AuthedAppIndexRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
   }
 }
 
+interface AuthedAppRouteChildren {
+  AuthedAppIndexRoute: typeof AuthedAppIndexRoute
+}
+
+const AuthedAppRouteChildren: AuthedAppRouteChildren = {
+  AuthedAppIndexRoute: AuthedAppIndexRoute,
+}
+
+const AuthedAppRouteWithChildren = AuthedAppRoute._addFileChildren(
+  AuthedAppRouteChildren,
+)
+
 interface AuthedRouteChildren {
+  AuthedAppRoute: typeof AuthedAppRouteWithChildren
   AuthedCliLoginRoute: typeof AuthedCliLoginRoute
-  AuthedIndexRoute: typeof AuthedIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedAppRoute: AuthedAppRouteWithChildren,
   AuthedCliLoginRoute: AuthedCliLoginRoute,
-  AuthedIndexRoute: AuthedIndexRoute,
 }
 
 const AuthedRouteWithChildren =

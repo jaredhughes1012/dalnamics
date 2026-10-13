@@ -1,5 +1,5 @@
 # Build context is the repo root so the go workspace and shared ./internal resolve.
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest

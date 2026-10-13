@@ -1,6 +1,14 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # dalnamics
 
 Monorepo for the dalnamics platform: Go services, the studio web app, and hardware (`harwood0/`).
+
+Read `docs/arch.md` for the system architecture (services, how they talk, shared error codes and config) and the feature doc for the domain you're touching (e.g. `docs/auth.md`). Docs change in the same commit as the code they describe, following `docs/CONTRIBUTION.md`.
+
+`harwood0/` is a separate Python (uv) and PlatformIO stack with its own `Makefile` and `harwood0/docs/`. None of the commands below, nor CI, cover it.
 
 ## Layout
 
@@ -18,7 +26,7 @@ Go modules are wired with `go.work`. Each service keeps app-specific code in `se
 ## Commands
 
 ```sh
-make generate     # after editing openapi.yaml, SQL queries, or mocked interfaces
+make generate     # after editing openapi.yaml, SQL queries, or mocked interfaces (generate-go + generate-studio)
 make test         # Go + studio unit tests
 make test-e2e     # Playwright; starts/reuses compose postgres+api and the studio dev server
 make lint         # go vet + oxlint
@@ -26,6 +34,16 @@ make up / down    # full stack in docker compose (api on :8080, postgres on :543
 make run-api      # api on the host against compose postgres (env from services/api/.env.example)
 make build        # bin/api, bin/cli, studio/dist
 ```
+
+Single tests:
+
+```sh
+go test ./services/api/internal/auth -run TestSignup             # one Go package / test
+cd studio && pnpm vitest run src/routes/login.test.tsx -t "name"  # one studio test file / case
+cd test/studio && pnpm exec playwright test tests/login.spec.ts --project=chromium  # one e2e spec (the setup project runs first)
+```
+
+CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`. The services and studio jobs run in parallel and fail if code generation changes any committed file. The e2e job runs after both pass, and deploy (a placeholder) runs only on `main`.
 
 ## API changes are spec-first
 
@@ -62,3 +80,12 @@ The api seeds the users in `DEV_EMAILS` when `DEBUG=true`, and they sign in with
 - Tests that need a signed-in user: `test.use({ storageState: AUTH_FILE })`.
 - Tests that end a session (logout): sign in their own session with `devLogin(page, email)` from `fixtures.ts`.
 - New users: create them with `uniqueEmail()`.
+
+## Issue workflow
+
+Work is planned and built through GitHub issues with three project skills:
+
+- `/intake <description>` and `/refine <issue#>` turn a request into a refined plan. They share one procedure (`.claude/workflow/refine.md`) and differ only in input: `/intake` creates a new issue, `/refine` rewrites an existing one. Each asks follow-up questions and checks for overlap with open issues. Overlapping work becomes a `Depends on` link and is never added to an existing issue. The issue body follows `.claude/workflow/issue-template.md` and gets the `refined` label.
+- `/implement <issue#>` runs in plan mode and asks all its questions before approval, so it can then run unattended. It refuses unrefined issues, issues labelled `in-progress`, and issues whose dependencies aren't closed as completed. After approval it claims the issue (`in-progress`), works in its own worktree at `../dalnamics.worktrees/issue-<n>-<slug>` on branch `issue/<n>-<slug>`, and opens a draft PR. It is done only when CI passes, and it ends by printing the branch and a manual test plan.
+
+GitHub I/O for these skills lives in `.claude/workflow/scripts/` (`context.sh`, `issue-publish.sh`, `issue-create.sh`, `deps.sh`, `claim.sh`, `release.sh`, `worktree.sh`). Change behavior there, not by duplicating logic in a skill.

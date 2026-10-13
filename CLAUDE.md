@@ -11,7 +11,7 @@ Monorepo for the dalnamics platform: Go services, the studio web app, and hardwa
 | `services/cli/` | Cobra cli over the api; agents drive the platform through it |
 | `studio/` | Vite + React app (shadcn, TanStack Router, zustand). Self-contained pnpm project |
 | `test/studio/` | Playwright e2e across studio, api, and cli |
-| `docs/` | Living design docs (see `docs/auth.md`) |
+| `docs/` | Living design docs: `arch.md` (architecture) plus one doc per feature domain. Follow `docs/CONTRIBUTION.md` when editing |
 
 Go modules are wired with `go.work`. Each service keeps app-specific code in `services/<svc>/internal/` and its `main` package in `services/<svc>/cmd/`.
 

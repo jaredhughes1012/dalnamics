@@ -1,0 +1,164 @@
+# Build, generate, test, and e2e gate for every PR and every push to main.
+# services and studio run in parallel; e2e runs once both pass; deploy runs
+# only for pushes to main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded PR runs are cancelled; every main commit runs to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "11.22.0"
+
+jobs:
+  services:
+    name: Services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+
+      - name: Generate
+        run: make generate-go
+
+      - name: Check generated code is committed
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+      - name: Vet
+        run: make vet
+
+      - name: Test
+        run: make test-go
+
+  studio:
+    name: Studio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: studio/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate
+        run: pnpm gen:api
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      # Building also regenerates the route tree, so the committed-code check follows it.
+      - name: Build
+        run: pnpm build
+
+      - name: Check generated code is committed
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  e2e:
+    name: E2E
+    needs: [services, studio]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v5
+
+      # The cli login spec builds bin/cli.
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.work
+          cache-dependency-path: "**/go.sum"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            studio/pnpm-lock.yaml
+            test/studio/pnpm-lock.yaml
+
+      - name: Install studio
+        working-directory: studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Install e2e
+        working-directory: test/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: test/studio
+        run: pnpm exec playwright install --with-deps
+
+      # Playwright's webServer starts compose (postgres + api) and the studio
+      # dev server itself; building first keeps image build time out of its
+      # startup timeout and in its own log section.
+      - name: Build compose images
+        run: docker compose build api
+
+      - name: Playwright
+        working-directory: test/studio
+        run: pnpm test
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test/studio/playwright-report
+            test/studio/test-results
+          retention-days: 14
+
+      - name: Stop compose
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    name: Deploy
+    needs: e2e
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        run: echo "No deploy target yet."

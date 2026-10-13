@@ -1,6 +1,6 @@
 GO_MODULES := ./internal/... ./services/api/... ./services/cli/...
 
-.PHONY: build build-api build-cli build-studio generate test test-go test-studio test-e2e vet lint \
+.PHONY: build build-api build-cli build-studio generate generate-go generate-studio test test-go test-studio test-e2e vet lint \
 	db-up run-api run-studio up down
 
 build: build-api build-cli build-studio
@@ -15,8 +15,12 @@ build-studio:
 	cd studio && pnpm install --frozen-lockfile && pnpm build
 
 # Regenerates sqlc queries, mocks, and the OpenAPI server/clients for Go and studio.
-generate:
+generate: generate-go generate-studio
+
+generate-go:
 	go generate $(GO_MODULES)
+
+generate-studio:
 	cd studio && pnpm gen:api
 
 test: test-go test-studio

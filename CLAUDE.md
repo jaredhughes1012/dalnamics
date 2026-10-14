@@ -16,6 +16,7 @@ Read `docs/arch.md` for the system architecture (services, how they talk, shared
 |---|---|
 | `internal/` | Go code shared by every service (module `dalnamics/internal`) |
 | `services/api/` | Front-facing HTTP API. Spec: `openapi.yaml` |
+| `services/devicemgr/` | Internal device service; only the api calls it. Private spec: `openapi.yaml` |
 | `services/cli/` | Cobra cli over the api; agents drive the platform through it |
 | `studio/` | Vite + React app (shadcn, TanStack Router, zustand). Self-contained pnpm project |
 | `test/studio/` | Playwright e2e across studio, api, and cli |
@@ -30,9 +31,10 @@ make generate     # after editing openapi.yaml, SQL queries, or mocked interface
 make test         # Go + studio unit tests
 make test-e2e     # Playwright; starts/reuses compose postgres+api and the studio dev server
 make lint         # go vet + oxlint
-make up / down    # full stack in docker compose (api on :8080, postgres on :5433)
+make up / down    # full stack in docker compose (api on :8080, devicemgr on :8081, postgres on :5433)
 make run-api      # api on the host against compose postgres (env from services/api/.env.example)
-make build        # bin/api, bin/cli, studio/dist
+make run-devicemgr # devicemgr on the host against compose postgres (env from services/devicemgr/.env.example)
+make build        # bin/api, bin/cli, bin/devicemgr, studio/dist
 ```
 
 Single tests:
@@ -51,12 +53,15 @@ CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`. The service
 2. `make generate` regenerates the Go server (`services/api/internal/apigen`), the Go client (`services/cli/internal/client/apigen`), and studio types (`studio/src/lib/api/schema.d.ts`). Generated code is committed and never hand-edited.
 3. Implement the new method of `apigen.StrictServerInterface` in `services/api/internal/server`. Handlers translate between apigen types and domain services, and return domain sentinel errors rather than building error responses; `server/errors.go` maps them to status codes and stable `code` strings.
 
+devicemgr's private spec (`services/devicemgr/openapi.yaml`) follows the same steps, generating `services/devicemgr/internal/apigen`. Its operations require the shared service token (`serviceToken`) by default; only `/healthz` opts out with `security: []`.
+
 ## Go conventions
 
 - Flat packages: one package per concern area, with topics split into files (e.g. `auth/{service,tokens,password,pkce}.go`). Add a subpackage only for a real boundary.
 - Configuration comes from the environment through a typed `config` package; no globals.
-- Data access: write SQL in `services/api/internal/store/queries/*.sql`; sqlc generates a domain package under `store/` (e.g. `store/auth`). Compose each domain's `Querier`/`Queries` into the root `store.Querier`/`store.Store`. Application code depends on `store.Querier` only.
-- Migrations live in `services/api/internal/store/migrations` as `{version}_{name}.{up,down}.sql`, are embedded, and are applied when the api starts.
+- Each service owns one Postgres schema (`public` for the api, `devicemgr` for devicemgr) and writes only to it; the api may read `devicemgr` tables. A schema a service creates gets a `COMMENT ON SCHEMA`.
+- Data access: write SQL in `services/<svc>/internal/store/queries/*.sql`; sqlc generates a domain package under `store/` (e.g. `store/auth`). Compose each domain's `Querier`/`Queries` into the root `store.Querier`/`store.Store`. Application code depends on `store.Querier` only.
+- Migrations live in `services/<svc>/internal/store/migrations` as `{version}_{name}.{up,down}.sql`, are embedded, and are applied when the service starts. devicemgr tracks its migrations in `public.devicemgr_schema_migrations`, separate from the api's `schema_migrations`.
   - Enable extensions inline in the first migration that needs them.
   - Prefer triggers for cross-cutting concerns (`set_updated_at()` exists).
   - Every table except `users` and pure join tables gets a `COMMENT ON TABLE`.

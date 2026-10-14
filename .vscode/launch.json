@@ -19,6 +19,24 @@
       "program": "${workspaceFolder}/services/api/cmd"
     },
     {
+      "name": "Attach: devicemgr (docker)",
+      "type": "go",
+      "request": "attach",
+      "mode": "remote",
+      "host": "127.0.0.1",
+      "port": 2346,
+      "preLaunchTask": "attach-dlv-devicemgr",
+      "substitutePath": [{ "from": "${workspaceFolder}", "to": "/src" }]
+    },
+    {
+      "name": "Launch: devicemgr",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/services/devicemgr/cmd",
+      "envFile": "${workspaceFolder}/services/devicemgr/.env.example"
+    },
+    {
       "name": "Launch: cli health",
       "type": "go",
       "request": "launch",

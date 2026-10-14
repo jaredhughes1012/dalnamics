@@ -8,6 +8,7 @@ COPY go.work go.work.sum ./
 COPY internal/go.mod internal/
 COPY services/api/go.mod services/api/go.sum services/api/
 COPY services/cli/go.mod services/cli/go.sum services/cli/
+COPY services/devicemgr/go.mod services/devicemgr/go.sum services/devicemgr/
 RUN go mod download
 
 COPY internal internal

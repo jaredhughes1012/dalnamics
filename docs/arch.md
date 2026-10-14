@@ -1,6 +1,6 @@
 # Architecture
 
-dalnamics is a platform that people drive through a web app (studio) and AI agents drive through a command-line client (cli). Both are clients of one HTTP api, which owns all state in Postgres. The hardware the platform controls lives in [`harwood0/`](../harwood0/), which has its own [architecture](../harwood0/docs/architecture.md).
+dalnamics is a platform that people drive through a web app (studio) and AI agents drive through a command-line client (cli). Both are clients of one HTTP api, which owns user-facing state in Postgres. Hardware devices talk to devicemgr, an internal service that owns device data and that only the api calls. The hardware the platform controls lives in [`harwood0/`](../harwood0/), which has its own [architecture](../harwood0/docs/architecture.md).
 
 Feature domains, and the flows within them, are documented separately:
 
@@ -22,19 +22,23 @@ flowchart LR
     cli -- "HTTPS + JSON<br/>bearer token" --> api
     cli -. "opens browser for sign-in" .-> studio
     api["api<br/>Go HTTP service"] --> pg[(Postgres)]
+    api -- "private HTTP<br/>service token" --> devicemgr["devicemgr<br/>Go internal service"]
+    devices([Devices]) --> devicemgr
+    devicemgr --> pg
 ```
 
-- Clients never talk to each other or to the database. Every read and write goes through the api.
+- Clients never talk to each other, to devicemgr, or to the database. Every read and write goes through the api.
+- Devices talk only to devicemgr. The api surfaces device data by reading devicemgr's schema and sends requests to devices through devicemgr's private API.
 - The only client-to-client hand-off is the cli opening studio in a browser so a person can approve a cli sign-in ([auth.md](auth.md#cli-login)).
 
 ## Tech stack
 
 | Concern | Choice | Why |
 |---|---|---|
-| Backend services | Go, one module per service, joined by [`go.work`](../go.work) | One language for the api and cli, so they share code in [`internal/`](../internal/) and the generated client stays in step with the server. |
-| API contract | OpenAPI 3 ([`services/api/openapi.yaml`](../services/api/openapi.yaml)) | A single spec generates the Go server, the Go client, and studio's types, so the contract cannot drift between them. |
+| Backend services | Go, one module per service (api, cli, devicemgr), joined by [`go.work`](../go.work) | One language for every service, so they share code in [`internal/`](../internal/) and the generated client stays in step with the server. |
+| API contract | OpenAPI 3 ([`services/api/openapi.yaml`](../services/api/openapi.yaml); devicemgr's private [`services/devicemgr/openapi.yaml`](../services/devicemgr/openapi.yaml)) | A single spec generates the Go server, the Go client, and studio's types, so the contract cannot drift between them. |
 | Code generation | oapi-codegen (Go server and client), openapi-typescript (studio), sqlc (queries), mockgen (mocks) | Generated code is committed and never hand-edited. Go tools are pinned as `tool` directives in each `go.mod`. |
-| Database | Postgres 17 | The single store for all api state. Extensions are enabled per migration as needed. |
+| Database | Postgres 17 | The single store for all platform state, with one schema per service. Extensions are enabled per migration as needed. |
 | Web app | React 19, Vite, TanStack Router, zustand, shadcn/Tailwind | File-based typed routes, small client-side stores, and owned (copied-in) UI components. |
 | CLI | Cobra | Conventional subcommand structure that agents can discover with `--help`. |
 | Local stack | Docker Compose ([`docker-compose.yaml`](../docker-compose.yaml)) | Every app service builds and runs in compose. Go services support delve attach from VS Code. |
@@ -44,13 +48,22 @@ flowchart LR
 
 ### api
 
-[`services/api/`](../services/api/) is the front-facing HTTP service and the only component with database access.
+[`services/api/`](../services/api/) is the front-facing HTTP service. It owns the `public` schema and is the only service clients reach.
 
 - **Contract:** the OpenAPI spec is the source of truth. Changes are spec-first: edit the spec, run `make generate`, then implement the generated `StrictServerInterface` in [`internal/server`](../services/api/internal/server/).
 - **Layers:** handlers in `server` translate between generated types and domain services (e.g. [`internal/auth`](../services/api/internal/auth/)). Domain services depend only on the composed `store.Querier` ([`internal/store`](../services/api/internal/store/store.go)).
 - **Authorization:** an operation requires a bearer token when the spec declares `security: [{bearerAuth: []}]`. The server reads this from the spec at startup, so there is no second list to maintain.
 - **Errors:** domain code returns sentinel errors. [`server/errors.go`](../services/api/internal/server/errors.go) maps them to a status and a stable [error code](#error-codes).
 - **Migrations** are embedded in the binary and applied at startup.
+
+### devicemgr
+
+[`services/devicemgr/`](../services/devicemgr/) is the internal device service. Devices are generic hardware nodes (harwood0 is one kind). devicemgr takes in incoming device data, tracks where devices are, and carries downstream requests from the api to devices.
+
+- **No public API:** studio and the cli never call devicemgr. Only the api does, and the api surfaces the data devicemgr writes.
+- **Contract:** a private OpenAPI spec ([`openapi.yaml`](../services/devicemgr/openapi.yaml)), changed spec-first the same way as the api's and generated into [`internal/apigen`](../services/devicemgr/internal/apigen/).
+- **Authorization:** every route except `/healthz` requires the shared service token ([Authentication](#authentication)), checked by [`internal/server`](../services/devicemgr/internal/server/server.go).
+- **Data:** owns the `devicemgr` Postgres schema. Its migrations ([`internal/store/migrations`](../services/devicemgr/internal/store/migrations/)) are embedded and applied at startup ([Data](#data)).
 
 ### cli
 
@@ -77,15 +90,18 @@ flowchart LR
 
 Every client authenticates to the api with a short-lived bearer access token and renews it with a single-use refresh token. Each sign-in creates a server-side session tagged with its client (`studio` or `cli`), so sessions can be revoked individually and revocation takes effect immediately. The api is the only component that reads or writes auth data. Flows and the reasoning behind them are in [auth.md](auth.md).
 
+Service-to-service calls use a shared secret. The api calls devicemgr with `Authorization: Bearer <DEVICEMGR_TOKEN>`, which devicemgr compares in constant time; a missing or wrong token gets `unauthenticated`.
+
 ### Data
 
-- Postgres is owned by the api. Other services reach data only through the api.
-- SQL is written by hand in [`store/queries`](../services/api/internal/store/queries/). sqlc generates one package per domain under `store/` (e.g. `store/auth`), and the root `store` package composes them into one `Querier`, the only thing application code depends on and the only thing mocked.
-- Migrations live in [`store/migrations`](../services/api/internal/store/migrations/) as `{version}_{name}.{up,down}.sql`. Cross-cutting behavior (e.g. `updated_at` via `set_updated_at()`) is done with triggers. Every table except `users` and pure join tables carries a `COMMENT ON TABLE`.
+- Each service owns one Postgres schema: `public` for the api, `devicemgr` for devicemgr. A service writes only its own schema. The one cross-schema access allowed is the api reading devicemgr's tables to surface device data. A schema a service creates carries a `COMMENT ON SCHEMA`.
+- Each service migrates its schema at startup with its own tracking table (`schema_migrations` for the api, `public.devicemgr_schema_migrations` for devicemgr). golang-migrate creates the tracking table before any migration runs, so it cannot live in a schema that a migration creates.
+- SQL is written by hand in each service's `store/queries` (e.g. the [api's](../services/api/internal/store/queries/)). sqlc generates one package per domain under `store/` (e.g. `store/auth`), and the root `store` package composes them into one `Querier`, the only thing application code depends on and the only thing mocked.
+- Migrations live in each service's `store/migrations` (e.g. the [api's](../services/api/internal/store/migrations/)) as `{version}_{name}.{up,down}.sql`. Cross-cutting behavior (e.g. `updated_at` via `set_updated_at()`) is done with triggers. Every table except `users` and pure join tables carries a `COMMENT ON TABLE`.
 
 ### Error codes
 
-Error responses share one shape, `{code, message}`. Clients switch on `code`, never on `message`.
+Error responses from every service share one shape, `{code, message}`. Clients switch on `code`, never on `message`.
 
 | Code | Status | Meaning |
 |---|---|---|
@@ -93,7 +109,7 @@ Error responses share one shape, `{code, message}`. Clients switch on `code`, ne
 | `invalid_code` | 400 | A one-time authorization code is invalid, expired, or already used |
 | `invalid_credentials` | 401 | Wrong email or password |
 | `invalid_token` | 401 | A refresh token is unknown, expired, or reused |
-| `unauthenticated` | 401 | Missing or invalid access token, or the session has ended |
+| `unauthenticated` | 401 | Missing or invalid access token or service token, or the session has ended |
 | `not_dev_user` | 401 | Dev login with an address not in `DEV_EMAILS` |
 | `email_taken` | 409 | Sign-up with an email that already has an account |
 | `not_found` | 404 | Unknown resource, or a dev-only endpoint outside `DEBUG` |
@@ -101,15 +117,17 @@ Error responses share one shape, `{code, message}`. Clients switch on `code`, ne
 
 ### Configuration
 
-Services are configured from the environment through a typed `config` package (e.g. [api config](../services/api/internal/config/config.go)); there are no globals. Local defaults for the api are in [`services/api/.env.example`](../services/api/.env.example).
+Services are configured from the environment through a typed `config` package (e.g. [api config](../services/api/internal/config/config.go)); there are no globals. Local defaults are in [`services/api/.env.example`](../services/api/.env.example) and [`services/devicemgr/.env.example`](../services/devicemgr/.env.example).
 
 | Variable | Service | Purpose |
 |---|---|---|
 | `API_ADDR` | api | Listen address |
-| `DATABASE_URL` | api | Postgres connection string |
+| `DATABASE_URL` | api, devicemgr | Postgres connection string |
 | `JWT_SECRET` | api | Signs access tokens; at least 32 bytes |
 | `DEBUG` | api | Enables development-only behavior, such as dev users |
 | `DEV_EMAILS` | api | Dev user addresses, comma separated (read only when `DEBUG=true`) |
+| `DEVICEMGR_ADDR` | devicemgr | Listen address |
+| `DEVICEMGR_TOKEN` | devicemgr | Shared service token callers present as a bearer token; at least 32 bytes |
 | `DALNAMICS_API_URL` / `--api-url` | cli | api base URL |
 | `DALNAMICS_STUDIO_URL` / `--studio-url` | cli | studio base URL, for browser sign-in |
 | `DALNAMICS_CREDENTIAL_STORE` | cli | Forces the credential backend (`keyring` or `file`) |
@@ -150,6 +168,7 @@ Both build jobs fail if code generation changes any committed file, so generated
 |---|---|---|
 | Postgres | compose | 5433 (host) |
 | api | compose, or on the host with `make run-api` | 8080; delve on 2345 in compose |
+| devicemgr | compose, or on the host with `make run-devicemgr` | 8081; delve on 2346 in compose |
 | studio | Vite dev server (`make run-studio`) | 5173 |
 
 `make up` builds and starts the full stack; `make generate`, `make test`, `make test-e2e`, and `make lint` cover the day-to-day loop (see the [Makefile](../Makefile)).

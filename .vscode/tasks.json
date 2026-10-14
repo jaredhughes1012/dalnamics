@@ -6,6 +6,12 @@
       "type": "shell",
       "command": "docker exec api pgrep dlv >/dev/null || docker exec -d api dlv attach 1 --headless --listen=:2345 --accept-multiclient --api-version=2 && sleep 1",
       "problemMatcher": []
+    },
+    {
+      "label": "attach-dlv-devicemgr",
+      "type": "shell",
+      "command": "docker exec devicemgr pgrep dlv >/dev/null || docker exec -d devicemgr dlv attach 1 --headless --listen=:2346 --accept-multiclient --api-version=2 && sleep 1",
+      "problemMatcher": []
     }
   ]
 }

@@ -41,5 +41,28 @@ services:
       timeout: 3s
       retries: 15
 
+  devicemgr:
+    container_name: devicemgr
+    build:
+      context: .
+      dockerfile: services/devicemgr/cmd/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DEVICEMGR_ADDR: ":8081"
+      DATABASE_URL: postgres://dalnamics:dalnamics@postgres:5432/dalnamics?sslmode=disable
+      DEVICEMGR_TOKEN: local-devicemgr-token-not-for-production-use
+    ports:
+      - "8081:8081"
+      - "2346:2346" # delve
+    cap_add: [SYS_PTRACE]
+    security_opt: [seccomp:unconfined]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
 volumes:
   pgdata:

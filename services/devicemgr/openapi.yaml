@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: dalnamics devicemgr
+  version: 0.1.0
+  description: >
+    Private API of devicemgr, the internal device service. Only the api calls
+    it. Every operation requires the shared service token unless it overrides
+    security.
+
+servers:
+  - url: http://localhost:8081
+
+security:
+  - serviceToken: []
+
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: The shared DEVICEMGR_TOKEN.
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Health:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code
+          example: unauthenticated
+        message:
+          type: string

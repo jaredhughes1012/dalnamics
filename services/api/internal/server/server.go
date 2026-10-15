@@ -12,6 +12,7 @@ import (
 	"dalnamics/internal/health"
 	"dalnamics/services/api/internal/apigen"
 	"dalnamics/services/api/internal/auth"
+	"dalnamics/services/api/internal/devices"
 )
 
 // ServiceName identifies the api in health checks and logs.
@@ -19,20 +20,21 @@ const ServiceName = "api"
 
 // Server implements apigen.StrictServerInterface.
 type Server struct {
-	auth   *auth.Service
-	logger *slog.Logger
+	auth    *auth.Service
+	devices *devices.Service
+	logger  *slog.Logger
 }
 
 var _ apigen.StrictServerInterface = (*Server)(nil)
 
 // NewHandler returns the root handler for the api.
-func NewHandler(authSvc *auth.Service, logger *slog.Logger) (http.Handler, error) {
+func NewHandler(authSvc *auth.Service, devicesSvc *devices.Service, logger *slog.Logger) (http.Handler, error) {
 	protected, err := bearerOperations()
 	if err != nil {
 		return nil, err
 	}
 
-	s := &Server{auth: authSvc, logger: logger}
+	s := &Server{auth: authSvc, devices: devicesSvc, logger: logger}
 	strict := apigen.NewStrictHandlerWithOptions(s,
 		[]apigen.StrictMiddlewareFunc{s.requireBearer(protected)},
 		apigen.StrictHTTPServerOptions{

@@ -11,7 +11,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dalnamics -d dalnamics"]
+      # Over TCP: during first-run initdb the server accepts only socket
+      # connections, so this stays unhealthy until the real server is up.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U dalnamics -d dalnamics"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -53,6 +55,8 @@ services:
       DEVICEMGR_ADDR: ":8081"
       DATABASE_URL: postgres://dalnamics:dalnamics@postgres:5432/dalnamics?sslmode=disable
       DEVICEMGR_TOKEN: local-devicemgr-token-not-for-production-use
+      DEVICEMGR_MQTT_URL: mqtt://mosquitto:1883
+      DEVICEMGR_MQTT_PASSWORD: local-devicemgr-mqtt-password-not-for-production
     ports:
       - "8081:8081"
       - "2346:2346" # delve
@@ -63,6 +67,19 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  # MQTT broker for devices. Authentication and ACLs are delegated to
+  # devicemgr's /mqtt endpoints (services/devicemgr/mosquitto/mosquitto.conf).
+  mosquitto:
+    container_name: mosquitto
+    image: iegomez/mosquitto-go-auth:3.0.0-mosquitto_2.0.18
+    depends_on:
+      devicemgr:
+        condition: service_started
+    volumes:
+      - ./services/devicemgr/mosquitto/mosquitto.conf:/etc/mosquitto/mosquitto.conf:ro
+    ports:
+      - "1883:1883"
 
 volumes:
   pgdata:

@@ -189,6 +189,45 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
 
+  /devices:
+    get:
+      operationId: listDevices
+      security:
+        - bearerAuth: []
+      summary: List the authenticated user's devices, newest first
+      tags: [devices]
+      responses:
+        "200":
+          description: The user's devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /devices/registration-codes:
+    post:
+      operationId: createDeviceRegistrationCode
+      security:
+        - bearerAuth: []
+      summary: Issue a one-time code that registers a device to the authenticated user
+      description: >-
+        The user gives the code to a device, which redeems it with devicemgr
+        over MQTT. Codes are single use and expire after 10 minutes.
+      tags: [devices]
+      responses:
+        "201":
+          description: Registration code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceRegistrationCode"
+        "401":
+          $ref: "#/components/responses/Error"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -349,3 +388,33 @@ components:
           type: string
         redirect_uri:
           type: string
+
+    Device:
+      type: object
+      required: [id, type, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          description: Kind of device, e.g. harwood0
+          example: harwood0
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          description: When the device was registered
+
+    DeviceRegistrationCode:
+      type: object
+      required: [code, expires_at]
+      properties:
+        code:
+          type: string
+          description: Six characters from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+          example: AB3D7K
+        expires_at:
+          type: string
+          format: date-time

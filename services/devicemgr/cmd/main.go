@@ -1,4 +1,5 @@
-// Command devicemgr serves the internal device service's private HTTP API.
+// Command devicemgr serves the internal device service's private HTTP API and
+// handles device traffic as an MQTT client.
 package main
 
 import (
@@ -15,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"dalnamics/services/devicemgr/internal/config"
+	"dalnamics/services/devicemgr/internal/devices"
+	"dalnamics/services/devicemgr/internal/mqtt"
 	"dalnamics/services/devicemgr/internal/server"
 	"dalnamics/services/devicemgr/internal/store"
 )
@@ -51,9 +54,14 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return fmt.Errorf("ping database: %w", err)
 	}
 
+	devicesSvc := devices.NewService(store.New(pool), devices.Config{MQTTPassword: cfg.MQTTPassword})
+	handler, err := server.NewHandler(cfg.Token, devicesSvc, logger)
+	if err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.NewHandler(cfg.Token, logger),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -62,6 +70,16 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Info("devicemgr listening", "addr", cfg.Addr)
 		errc <- srv.ListenAndServe()
 	}()
+
+	// The broker calls back into the HTTP server to authenticate devicemgr, so
+	// the server starts first; the MQTT client retries until both are up.
+	mqttCtx, stopMQTT := context.WithCancel(context.Background())
+	defer stopMQTT()
+	broker, err := mqtt.Connect(mqttCtx, mqtt.Config{URL: cfg.MQTTURL, Password: cfg.MQTTPassword},
+		mqtt.NewHandshake(devicesSvc, logger), logger)
+	if err != nil {
+		return err
+	}
 
 	select {
 	case err := <-errc:
@@ -72,6 +90,10 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	logger.Info("devicemgr shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if err := broker.Disconnect(shutdownCtx); err != nil {
+		logger.Warn("mqtt disconnect", "err", err)
+	}
+	stopMQTT()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ import (
 
 	"dalnamics/services/api/internal/auth"
 	"dalnamics/services/api/internal/config"
+	"dalnamics/services/api/internal/devices"
 	"dalnamics/services/api/internal/server"
 	"dalnamics/services/api/internal/store"
 )
@@ -49,7 +50,8 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 	defer pool.Close()
 
-	authSvc := auth.NewService(store.New(pool), auth.Config{
+	q := store.New(pool)
+	authSvc := auth.NewService(q, auth.Config{
 		JWTSecret: cfg.JWTSecret,
 		DevEmails: cfg.DevEmails,
 	})
@@ -60,7 +62,7 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("DEBUG enabled: dev login is available", "dev_emails", cfg.DevEmails)
 	}
 
-	handler, err := server.NewHandler(authSvc, logger)
+	handler, err := server.NewHandler(authSvc, devices.NewService(q, devices.Config{}), logger)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,8 @@ export type User = components['schemas']['User']
 export type Tokens = components['schemas']['Tokens']
 export type Session = components['schemas']['Session']
 export type ApiErrorBody = components['schemas']['Error']
+export type Device = components['schemas']['Device']
+export type DeviceRegistrationCode = components['schemas']['DeviceRegistrationCode']
 
 // Requests go through the Vite dev proxy at /api, which forwards to the Go api.
 // The base URL is absolute because openapi-fetch builds Request objects, and

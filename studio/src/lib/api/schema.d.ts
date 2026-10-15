@@ -180,6 +180,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated user's devices, newest first */
+        get: operations["listDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/registration-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a one-time code that registers a device to the authenticated user
+         * @description The user gives the code to a device, which redeems it with devicemgr over MQTT. Codes are single use and expire after 10 minutes.
+         */
+        post: operations["createDeviceRegistrationCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -254,6 +291,30 @@ export interface components {
             code: string;
             code_verifier: string;
             redirect_uri: string;
+        };
+        Device: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Kind of device, e.g. harwood0
+             * @example harwood0
+             */
+            type: string;
+            name: string;
+            /**
+             * Format: date-time
+             * @description When the device was registered
+             */
+            created_at: string;
+        };
+        DeviceRegistrationCode: {
+            /**
+             * @description Six characters from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+             * @example AB3D7K
+             */
+            code: string;
+            /** Format: date-time */
+            expires_at: string;
         };
     };
     responses: {
@@ -481,6 +542,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    listDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user's devices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"][];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    createDeviceRegistrationCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registration code */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceRegistrationCode"];
                 };
             };
             401: components["responses"]["Error"];

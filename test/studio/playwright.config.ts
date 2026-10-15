@@ -2,9 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 import { API_URL, REPO_ROOT, STUDIO_URL } from './tests/env'
 
 /**
- * End-to-end tests run against the real stack: postgres + api from
- * docker-compose (with DEBUG=true and the e2e dev user), and the studio Vite
- * dev server. Already-running servers are reused outside CI.
+ * End-to-end tests run against the real stack: postgres, the api (with
+ * DEBUG=true and the e2e dev user), devicemgr, and the mosquitto broker from
+ * docker-compose, and the studio Vite dev server. Already-running servers are reused outside CI.
  *
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -42,7 +42,7 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'docker compose up --build postgres api',
+      command: 'docker compose up --build postgres api devicemgr mosquitto',
       cwd: REPO_ROOT,
       url: `${API_URL}/healthz`,
       reuseExistingServer: !process.env.CI,

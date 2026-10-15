@@ -1,5 +1,7 @@
 import os
-from dataclasses import dataclass
+import socket
+from dataclasses import dataclass, field
+from pathlib import Path
 
 SIM = "sim"
 
@@ -17,6 +19,15 @@ class Settings:
     arm_camera_url: str = "http://harwood0-arm.local:81/stream"
     host: str = "127.0.0.1"
     port: int = 8000
+    # MQTT broker of the dalnamics platform (mqtt://host:port). Empty disables the platform
+    # connection, so the API runs standalone.
+    mqtt_url: str = ""
+    # One-time code from `cli devices register` or studio's Devices page. Used only until the
+    # robot has stored credentials.
+    registration_code: str = ""
+    device_name: str = field(default_factory=socket.gethostname)
+    # Where the robot keeps its platform credentials (device.json).
+    state_dir: Path = field(default_factory=lambda: Path.home() / ".local/state/harwood0")
 
     @property
     def camera_urls(self) -> dict[str, str]:
@@ -36,4 +47,12 @@ class Settings:
             arm_camera_url=os.environ.get("HARWOOD0_ARM_CAMERA_URL", defaults.arm_camera_url),
             host=os.environ.get("HARWOOD0_HOST", defaults.host),
             port=int(os.environ.get("HARWOOD0_PORT", defaults.port)),
+            mqtt_url=os.environ.get("HARWOOD0_MQTT_URL", defaults.mqtt_url),
+            registration_code=os.environ.get(
+                "HARWOOD0_REGISTRATION_CODE", defaults.registration_code
+            ),
+            device_name=os.environ.get("HARWOOD0_DEVICE_NAME") or defaults.device_name,
+            state_dir=Path(os.environ["HARWOOD0_STATE_DIR"]).expanduser()
+            if os.environ.get("HARWOOD0_STATE_DIR")
+            else defaults.state_dir,
         )

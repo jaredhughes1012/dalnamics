@@ -97,14 +97,19 @@ func newStatusCmd(e *env) *cobra.Command {
 				return err
 			}
 			user, err := c.Me(cmd.Context())
-			if client.IsUnauthorized(err) {
-				return errors.New("not logged in; run `cli auth login`")
-			}
 			if err != nil {
-				return err
+				return notLoggedIn(err)
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Logged in to %s as %s <%s>\n", c.BaseURL, user.Name, user.Email)
 			return err
 		},
 	}
+}
+
+// notLoggedIn replaces a 401 with the hint to log in.
+func notLoggedIn(err error) error {
+	if client.IsUnauthorized(err) {
+		return errors.New("not logged in; run `cli auth login`")
+	}
+	return err
 }

@@ -10,6 +10,7 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,8 +35,49 @@ type Health struct {
 	Status  string `json:"status"`
 }
 
+// MqttAclRequest defines model for MqttAclRequest.
+type MqttAclRequest struct {
+	// Acc Requested access. 1 read, 2 write, 3 read and write, 4 subscribe.
+	Acc      int    `json:"acc"`
+	Clientid string `json:"clientid"`
+
+	// Topic Topic name, or topic filter for a subscription
+	Topic    string `json:"topic"`
+	Username string `json:"username"`
+}
+
+// MqttSuperuserRequest defines model for MqttSuperuserRequest.
+type MqttSuperuserRequest struct {
+	Username string `json:"username"`
+}
+
+// MqttUserRequest defines model for MqttUserRequest.
+type MqttUserRequest struct {
+	Clientid string `json:"clientid"`
+	Password string `json:"password"`
+	Username string `json:"username"`
+}
+
+// CheckMqttAclJSONRequestBody defines body for CheckMqttAcl for application/json ContentType.
+type CheckMqttAclJSONRequestBody = MqttAclRequest
+
+// CheckMqttSuperuserJSONRequestBody defines body for CheckMqttSuperuser for application/json ContentType.
+type CheckMqttSuperuserJSONRequestBody = MqttSuperuserRequest
+
+// CheckMqttUserJSONRequestBody defines body for CheckMqttUser for application/json ContentType.
+type CheckMqttUserJSONRequestBody = MqttUserRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// CheckMqttAcl Decide whether a client may access a topic
+	// (POST /mqtt/acl)
+	CheckMqttAcl(w http.ResponseWriter, r *http.Request)
+	// CheckMqttSuperuser Decide whether a broker user bypasses topic ACLs
+	// (POST /mqtt/superuser)
+	CheckMqttSuperuser(w http.ResponseWriter, r *http.Request)
+	// CheckMqttUser Decide whether the broker accepts a client's credentials
+	// (POST /mqtt/user)
+	CheckMqttUser(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -46,6 +88,48 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CheckMqttAcl operation middleware
+func (siw *ServerInterfaceWrapper) CheckMqttAcl(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CheckMqttAcl(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CheckMqttSuperuser operation middleware
+func (siw *ServerInterfaceWrapper) CheckMqttSuperuser(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CheckMqttSuperuser(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CheckMqttUser operation middleware
+func (siw *ServerInterfaceWrapper) CheckMqttUser(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CheckMqttUser(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 type UnescapedCookieParamError struct {
 	ParamName string
@@ -161,13 +245,104 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		}
 	}
 
+	wrapper := ServerInterfaceWrapper{
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandlerFunc:   options.ErrorHandlerFunc,
+	}
+
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/mqtt/user", wrapper.CheckMqttUser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/mqtt/superuser", wrapper.CheckMqttSuperuser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/mqtt/acl", wrapper.CheckMqttAcl)
+
 	return m
 }
 
 type ErrorJSONResponse Error
 
+type CheckMqttAclRequestObject struct {
+	Body *CheckMqttAclJSONRequestBody
+}
+
+type CheckMqttAclResponseObject interface {
+	VisitCheckMqttAclResponse(w http.ResponseWriter) error
+}
+
+type CheckMqttAcl200Response struct {
+}
+
+func (response CheckMqttAcl200Response) VisitCheckMqttAclResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type CheckMqttAcl403Response struct {
+}
+
+func (response CheckMqttAcl403Response) VisitCheckMqttAclResponse(w http.ResponseWriter) error {
+	w.WriteHeader(403)
+	return nil
+}
+
+type CheckMqttSuperuserRequestObject struct {
+	Body *CheckMqttSuperuserJSONRequestBody
+}
+
+type CheckMqttSuperuserResponseObject interface {
+	VisitCheckMqttSuperuserResponse(w http.ResponseWriter) error
+}
+
+type CheckMqttSuperuser200Response struct {
+}
+
+func (response CheckMqttSuperuser200Response) VisitCheckMqttSuperuserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type CheckMqttSuperuser403Response struct {
+}
+
+func (response CheckMqttSuperuser403Response) VisitCheckMqttSuperuserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(403)
+	return nil
+}
+
+type CheckMqttUserRequestObject struct {
+	Body *CheckMqttUserJSONRequestBody
+}
+
+type CheckMqttUserResponseObject interface {
+	VisitCheckMqttUserResponse(w http.ResponseWriter) error
+}
+
+type CheckMqttUser200Response struct {
+}
+
+func (response CheckMqttUser200Response) VisitCheckMqttUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type CheckMqttUser403Response struct {
+}
+
+func (response CheckMqttUser403Response) VisitCheckMqttUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(403)
+	return nil
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// CheckMqttAcl Decide whether a client may access a topic
+	// (POST /mqtt/acl)
+	CheckMqttAcl(ctx context.Context, request CheckMqttAclRequestObject) (CheckMqttAclResponseObject, error)
+	// CheckMqttSuperuser Decide whether a broker user bypasses topic ACLs
+	// (POST /mqtt/superuser)
+	CheckMqttSuperuser(ctx context.Context, request CheckMqttSuperuserRequestObject) (CheckMqttSuperuserResponseObject, error)
+	// CheckMqttUser Decide whether the broker accepts a client's credentials
+	// (POST /mqtt/user)
+	CheckMqttUser(ctx context.Context, request CheckMqttUserRequestObject) (CheckMqttUserResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -209,19 +384,120 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// CheckMqttAcl operation middleware
+func (sh *strictHandler) CheckMqttAcl(w http.ResponseWriter, r *http.Request) {
+	var request CheckMqttAclRequestObject
+
+	var body CheckMqttAclJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CheckMqttAcl(ctx, request.(CheckMqttAclRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CheckMqttAcl")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CheckMqttAclResponseObject); ok {
+		if err := validResponse.VisitCheckMqttAclResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CheckMqttSuperuser operation middleware
+func (sh *strictHandler) CheckMqttSuperuser(w http.ResponseWriter, r *http.Request) {
+	var request CheckMqttSuperuserRequestObject
+
+	var body CheckMqttSuperuserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CheckMqttSuperuser(ctx, request.(CheckMqttSuperuserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CheckMqttSuperuser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CheckMqttSuperuserResponseObject); ok {
+		if err := validResponse.VisitCheckMqttSuperuserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CheckMqttUser operation middleware
+func (sh *strictHandler) CheckMqttUser(w http.ResponseWriter, r *http.Request) {
+	var request CheckMqttUserRequestObject
+
+	var body CheckMqttUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CheckMqttUser(ctx, request.(CheckMqttUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CheckMqttUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CheckMqttUserResponseObject); ok {
+		if err := validResponse.VisitCheckMqttUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

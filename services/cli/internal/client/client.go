@@ -110,6 +110,31 @@ func (c *Client) Me(ctx context.Context) (apigen.User, error) {
 	return decoded(res.HTTPResponse, res.JSON200)
 }
 
+// CreateDeviceRegistrationCode issues a one-time code that registers a device
+// to the logged-in user.
+func (c *Client) CreateDeviceRegistrationCode(ctx context.Context) (apigen.DeviceRegistrationCode, error) {
+	res, err := c.api.CreateDeviceRegistrationCodeWithResponse(ctx)
+	if err != nil {
+		return apigen.DeviceRegistrationCode{}, err
+	}
+	if err := checkStatus(res.HTTPResponse, res.Body); err != nil {
+		return apigen.DeviceRegistrationCode{}, err
+	}
+	return decoded(res.HTTPResponse, res.JSON201)
+}
+
+// ListDevices returns the logged-in user's devices, newest first.
+func (c *Client) ListDevices(ctx context.Context) ([]apigen.Device, error) {
+	res, err := c.api.ListDevicesWithResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkStatus(res.HTTPResponse, res.Body); err != nil {
+		return nil, err
+	}
+	return decoded(res.HTTPResponse, res.JSON200)
+}
+
 // DevLogin starts a cli session for a dev user and stores its tokens.
 func (c *Client) DevLogin(ctx context.Context, email string) (apigen.User, error) {
 	client := apigen.Cli

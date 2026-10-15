@@ -21,6 +21,15 @@ type CliAuthCode struct {
 	CreatedAt     time.Time
 }
 
+// Short-lived, single-use codes that register a device to the user who requested them. devicemgr reads a code when a device redeems it and records the redemption in devicemgr.devices.registration_code_id, which is unique, so the api never marks codes used. Only the SHA-256 of the normalized code is stored.
+type DeviceRegistrationCode struct {
+	ID        uuid.UUID
+	CodeHash  []byte
+	UserID    uuid.UUID
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
 // SHA-256 of every refresh token a session has rotated away from, written by a trigger on sessions. Presenting one of these again means the token was copied, so the api revokes its session.
 type RotatedRefreshToken struct {
 	TokenHash []byte

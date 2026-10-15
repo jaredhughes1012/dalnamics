@@ -1,10 +1,13 @@
 import { Link } from '@tanstack/react-router'
-import { Hexagon, LayoutDashboard, type LucideIcon } from 'lucide-react'
+import { Cpu, Hexagon, LayoutDashboard, type LucideIcon } from 'lucide-react'
 import { AccountMenu } from '@/components/account-menu'
 
-type NavItem = { to: '/'; label: string; icon: LucideIcon }
+type NavItem = { to: '/' | '/devices'; label: string; icon: LucideIcon }
 
-const items: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }]
+const items: NavItem[] = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/devices', label: 'Devices', icon: Cpu },
+]
 
 /** Narrow vertical navigation: logo, page links, and the account menu at the bottom. */
 export function NavRail() {

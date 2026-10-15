@@ -11,7 +11,9 @@ package mockstore
 
 import (
 	context "context"
+	store "dalnamics/services/api/internal/store"
 	auth "dalnamics/services/api/internal/store/auth"
+	devices "dalnamics/services/api/internal/store/devices"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
@@ -54,6 +56,20 @@ func (m *MockQuerier) CreateCLIAuthCode(ctx context.Context, arg auth.CreateCLIA
 func (mr *MockQuerierMockRecorder) CreateCLIAuthCode(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCLIAuthCode", reflect.TypeOf((*MockQuerier)(nil).CreateCLIAuthCode), ctx, arg)
+}
+
+// CreateDeviceRegistrationCode mocks base method.
+func (m *MockQuerier) CreateDeviceRegistrationCode(ctx context.Context, arg devices.CreateDeviceRegistrationCodeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateDeviceRegistrationCode", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateDeviceRegistrationCode indicates an expected call of CreateDeviceRegistrationCode.
+func (mr *MockQuerierMockRecorder) CreateDeviceRegistrationCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDeviceRegistrationCode", reflect.TypeOf((*MockQuerier)(nil).CreateDeviceRegistrationCode), ctx, arg)
 }
 
 // CreateSession mocks base method.
@@ -100,6 +116,20 @@ func (mr *MockQuerierMockRecorder) CreateUserIfNotExists(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserIfNotExists", reflect.TypeOf((*MockQuerier)(nil).CreateUserIfNotExists), ctx, arg)
 }
 
+// DeleteExpiredDeviceRegistrationCodes mocks base method.
+func (m *MockQuerier) DeleteExpiredDeviceRegistrationCodes(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredDeviceRegistrationCodes", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredDeviceRegistrationCodes indicates an expected call of DeleteExpiredDeviceRegistrationCodes.
+func (mr *MockQuerierMockRecorder) DeleteExpiredDeviceRegistrationCodes(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredDeviceRegistrationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredDeviceRegistrationCodes), ctx)
+}
+
 // GetActiveSession mocks base method.
 func (m *MockQuerier) GetActiveSession(ctx context.Context, id uuid.UUID) (auth.Session, error) {
 	m.ctrl.T.Helper()
@@ -143,6 +173,35 @@ func (m *MockQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (auth.User,
 func (mr *MockQuerierMockRecorder) GetUserByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockQuerier)(nil).GetUserByID), ctx, id)
+}
+
+// InTx mocks base method.
+func (m *MockQuerier) InTx(ctx context.Context, fn func(store.Querier) error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InTx", ctx, fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InTx indicates an expected call of InTx.
+func (mr *MockQuerierMockRecorder) InTx(ctx, fn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InTx", reflect.TypeOf((*MockQuerier)(nil).InTx), ctx, fn)
+}
+
+// ListDevicesByUser mocks base method.
+func (m *MockQuerier) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]devices.ListDevicesByUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListDevicesByUser", ctx, userID)
+	ret0, _ := ret[0].([]devices.ListDevicesByUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListDevicesByUser indicates an expected call of ListDevicesByUser.
+func (mr *MockQuerierMockRecorder) ListDevicesByUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDevicesByUser", reflect.TypeOf((*MockQuerier)(nil).ListDevicesByUser), ctx, userID)
 }
 
 // RevokeSession mocks base method.

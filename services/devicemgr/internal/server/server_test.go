@@ -10,16 +10,31 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"dalnamics/internal/health"
 	"dalnamics/services/devicemgr/internal/apigen"
+	"dalnamics/services/devicemgr/internal/devices"
+	"dalnamics/services/devicemgr/internal/store/mockstore"
 )
 
-const testToken = "test-token-that-is-at-least-32-bytes"
+const (
+	testToken        = "test-token-that-is-at-least-32-bytes"
+	testMQTTPassword = "test-mqtt-password-that-is-at-least-32-bytes"
+)
+
+func newHandler(t *testing.T) (http.Handler, *mockstore.MockQuerier) {
+	t.Helper()
+	q := mockstore.NewMockQuerier(gomock.NewController(t))
+	svc := devices.NewService(q, devices.Config{MQTTPassword: []byte(testMQTTPassword)})
+	h, err := NewHandler([]byte(testToken), svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	return h, q
+}
 
 func serve(t *testing.T, path, authorization string) *httptest.ResponseRecorder {
 	t.Helper()
-	h := NewHandler([]byte(testToken), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h, _ := newHandler(t)
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -65,4 +80,16 @@ func TestUnknownPathWithTokenIsNotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Equal(t, "not_found", decode[apigen.Error](t, rec).Code)
+}
+
+func TestOpenRoutesComeFromSpec(t *testing.T) {
+	routes, err := openRoutes()
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{
+		"GET /healthz":         true,
+		"POST /mqtt/user":      true,
+		"POST /mqtt/superuser": true,
+		"POST /mqtt/acl":       true,
+	}, routes)
 }

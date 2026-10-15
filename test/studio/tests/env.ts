@@ -6,6 +6,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(here, '../../..')
 export const STUDIO_URL = process.env.STUDIO_URL ?? 'http://localhost:5173'
 export const API_URL = process.env.API_URL ?? 'http://localhost:8080'
+export const MQTT_URL = process.env.MQTT_URL ?? 'mqtt://localhost:1883'
 
 /** Dev user signed in by auth.setup.ts. Must be listed in the api's DEV_EMAILS. */
 export const E2E_USER = { email: 'e2e@dalnamics.local', name: 'e2e' }

@@ -19,6 +19,7 @@ import (
 	"dalnamics/internal/health"
 	"dalnamics/services/api/internal/apigen"
 	"dalnamics/services/api/internal/auth"
+	"dalnamics/services/api/internal/devices"
 	storeauth "dalnamics/services/api/internal/store/auth"
 	"dalnamics/services/api/internal/store/mockstore"
 )
@@ -35,7 +36,7 @@ func newTestServer(t *testing.T, devEmails ...string) *testServer {
 	t.Helper()
 	q := mockstore.NewMockQuerier(gomock.NewController(t))
 	svc := auth.NewService(q, auth.Config{JWTSecret: testSecret, DevEmails: devEmails})
-	h, err := NewHandler(svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h, err := NewHandler(svc, devices.NewService(q, devices.Config{}), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(h)
@@ -91,7 +92,10 @@ func TestBearerOperationsComeFromSpec(t *testing.T) {
 	ops, err := bearerOperations()
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string]bool{"logout": true, "authorizecli": true, "getme": true}, ops)
+	assert.Equal(t, map[string]bool{
+		"logout": true, "authorizecli": true, "getme": true,
+		"listdevices": true, "createdeviceregistrationcode": true,
+	}, ops)
 }
 
 func TestSignup(t *testing.T) {
@@ -185,6 +189,8 @@ func TestProtectedRoutesRequireBearer(t *testing.T) {
 		{http.MethodGet, "/me", "garbage"},
 		{http.MethodPost, "/auth/logout", ""},
 		{http.MethodPost, "/auth/cli/authorize", ""},
+		{http.MethodGet, "/devices", ""},
+		{http.MethodPost, "/devices/registration-codes", ""},
 	} {
 		res := ts.do(t, tc.method, tc.path, `{}`, tc.token)
 

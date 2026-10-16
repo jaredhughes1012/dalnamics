@@ -68,8 +68,8 @@ References in brackets are item numbers from the original parts list (`BOM.md` a
 | Servo extension leads [S5] | 3 | 3-wire, female to male: 100, 300, and 500 mm | Shoulder, elbow, and gripper servos |
 | Wiring [S5] | | Dupont jumpers (F–F and F–M), 22 AWG silicone wire | See the [cut list](#cut-list) |
 | Double-sided foam tape | | | Holds the battery, UBEC, and TB6612s to the chassis floor |
-| Heat-set inserts | 28 | M2.5 × 4 mm, about 3.5 mm across (common kit size) | The structural screws thread into these; see [fasteners](#fasteners) |
-| Hex nuts | 8 | M2.5 | The yaw and shoulder servos' tab screws |
+| Heat-set inserts | 20 + 8 | M3 × 4 mm, about 4.2 mm across, and M2.5 × 4 mm, about 3.5 mm across (common kit sizes) | The screws thread into these; see [fasteners](#fasteners) |
+| Hex nuts | 8 | M3 | The yaw and shoulder servos' tab screws |
 | Filament [S7] | ~0.7 kg | PLA or PETG | |
 
 The PCA9685, mecanum wheels, the three extra GA25 motors, and the second TB6612 are additions to the original parts list.
@@ -91,30 +91,32 @@ The elbow sets the payload limit. A servo holding a load continuously should sta
 
 The structural screws are machine screws into brass heat-set inserts pressed into the printed parts. Where a servo's tab holes leave no room for an insert, the screw goes through and takes a nut. Lengths are the longest that fit. Shorter ones work as long as they reach about 3.5 mm into an insert or right through a nut.
 
-The structural screws are M2.5 for this build, set by `STRUCTURAL_SCREW` in `cad/src/harwood0_cad/params.py`. That one setting sizes every insert hole, nut pocket, clearance hole, and counterbore. The insert holes are sized for common kit inserts (`M2_5_INSERT_HOLE_D`, 3.2 mm, 5 mm deep). If yours differ, set the maker's recommended hole and the insert's length there. The motors' face screws stay M3, since they thread into the gearbox.
+The screws are M3, except into the ULN2003 and PCA9685, whose mounting holes are too small for M3 and take M2.5. Each joint's size is set in `cad/src/harwood0_cad/params.py` (`STRUCTURAL_SCREW`, `UNO_SCREW`, `ULN2003_SCREW`, `PCA9685_SCREW`), and each size (`M3`, `M2_5`) carries its clearance hole, head, insert, and nut dimensions. The insert holes are sized for common kit inserts (4.0 mm for M3 and 3.2 mm for M2.5, each 5 mm deep). Each opens into a 1 mm deep lead-in a little wider than the insert (its outside diameter + `FIT_CLEARANCE`), which holds the insert upright while it heats. If yours differ, set the maker's recommended hole, the insert's length, and its outside diameter there.
 
-| Where | Qty | Screw | Into | Final build |
-|---|---|---|---|---|
-| Motors → chassis motor walls | 8 | M3 × 8. Check the gearbox's thread depth first: a screw that bottoms out can jam the gears. | Gearbox | |
-| Uno → chassis standoffs | 4 | M2.5 × 6 | Insert | |
-| ULN2003 → chassis standoffs | 4 | M2.5 × 6 | Insert | |
-| Track lip strips → top plate | 4 | M2.5 × 8 | Insert | M3 |
-| Stepper ears → carriage motor plate | 2 | M2.5 × 5 | Insert | |
-| Tower column flange → carriage deck | 4 | M2.5 × 8 | Insert | **M3** |
-| PCA9685 → column bosses | 4 | M2.5 × 6 | Insert | |
-| Hood → column corner blocks | 4 | M2.5 × 8, driven down through the hood floor | Insert | **M3** |
-| Yaw servo tabs → hood floor | 4 | M2.5 × 10, driven up from below | Nut, in the pocket on top of each boss | **M3** |
-| Shoulder servo tabs → yaw bracket | 4 | M2.5 × 10, in from behind the plate | Nut, on top of each tab | **M3** |
-| Gripper base → forearm | 2 | M2.5 × 8, from the forearm's back face | Insert | |
-| Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos | The horn | |
-| Horn centre screws | | Supplied with the servos | The servo's spline | |
-| MG90S tab screws | | Supplied with the servos | Self-tapping into printed pilot holes | |
+| Where | Qty | Screw | Into |
+|---|---|---|---|
+| Motors → chassis motor walls | 8 | M3 × 8. Check the gearbox's thread depth first: a screw that bottoms out can jam the gears. | Gearbox |
+| Uno → chassis standoffs | 4 | M3 × 6 | Insert |
+| ULN2003 → chassis standoffs | 4 | M2.5 × 6 | Insert |
+| Track lip strips → top plate | 4 | M3 × 8 | Insert |
+| Stepper ears → carriage motor plate | 2 | M3 × 5 | Insert |
+| Tower column flange → carriage deck | 4 | M3 × 8 | Insert |
+| PCA9685 → column bosses | 4 | M2.5 × 6 | Insert |
+| Hood → column corner blocks | 4 | M3 × 8, driven down through the hood floor | Insert |
+| Yaw servo tabs → hood floor | 4 | M3 × 10, driven up from below | Nut, in the pocket on top of each boss |
+| Shoulder servo tabs → yaw bracket | 4 | M3 × 10, in from behind the plate | Nut, on top of each tab |
+| Gripper base → forearm | 2 | M3 × 8, from the forearm's back face | Insert |
+| Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos | The horn |
+| Horn centre screws | | Supplied with the servos | The servo's spline |
+| MG90S tab screws | | Supplied with the servos | Self-tapping into printed pilot holes |
+
+The yaw servo's lead runs between its front tab screws, through a notch in the hood floor, so the notch opens the inside corner of those two nut pockets. The rest of each pocket still stops its nut turning.
 
 #### Fitting inserts
 
 Use a soldering iron at about 220 °C for PLA or 240 °C for PETG. A conical insert tip helps, but a plain tip works.
 
-1. Set the insert on its hole, the narrow end down if it has one.
+1. Drop the insert into the lead-in at the hole's mouth, the narrow end down if it has one. It stands upright there on its own.
 2. Rest the iron in it and let it sink under its own weight, holding it straight. Don't push.
 3. Stop just before flush. Lift the iron off and press the insert flush with something flat and cold, such as the side of a screwdriver shaft, to set it square while the plastic cools.
 
@@ -123,16 +125,6 @@ A few holes take their insert from a particular side:
 - **Carriage motor plate.** From the stepper's side.
 - **Top plate.** From the entry pocket's floor.
 - **Gripper base.** Into the ends of its legs.
-
-#### Final build screws
-
-M2.5 holds for testing, but the joints that carry the arm should move to M3 for the final build:
-
-- **Must size up (bold above).** The column flange and the hood screws carry the whole arm's weight and its swing. The yaw servo hangs the arm from the hood floor, and the shoulder servo's tabs take its full holding torque. These see the most load and vibration. M3 inserts are larger, so they spread that load through more plastic, and an M3 screw is about 45% stronger.
-- **Worth sizing up.** The track lips: they hold the dovetail closed over the entry pocket, which takes the arm's tipping load when the carriage is at the rear of the track.
-- **Fine as M2.5.** The boards, stepper ears, and gripper base carry almost no load.
-
-To switch, set `STRUCTURAL_SCREW = "M3"`, check `M3_INSERT_HOLE_D` and `M3_INSERT_L` against your M3 inserts, and re-export. That changes every structural hole at once. Reprint every part with structural screw holes, not just the four joints above: the chassis, top plate, track lips, carriage, column, hood, yaw bracket, forearm, and gripper base. The lengths stay the same, and the nuts become M3.
 
 The TB6612 boards, UBEC, and battery are held with double-sided tape, and the nose camera slides into grooves; none need screws. The top plate, table, hood lid, and column door snap or drop in place.
 
@@ -169,9 +161,9 @@ The TB6612 boards, UBEC, and battery are held with double-sided tape, and the no
   - 100% for the pinion, gripper gear, and jaws: small gears and racks need solid teeth.
 - **Fit.** Print the `tolerance_coupon` first and tune `cad/src/harwood0_cad/params.py` before printing the large parts.
   - The coupon has three rows of five holes, each stepping 0.1 mm up from the end marked with grooves. The middle hole of each row is the current size.
-  - **1 groove: M2.5 insert hole** (`M2_5_INSERT_HOLE_D`, 3.2 mm). Press an insert into each hole (see [fitting inserts](#fitting-inserts)). Pick the one it goes into straight and flush, without plastic bulging up around it, and doesn't turn when a screw is tightened into it.
-  - **2 grooves: M3 insert hole** (`M3_INSERT_HOLE_D`, 4.0 mm). Only needed before switching to M3; test it the same way.
-  - **3 grooves: M2.5 clearance** (2.7 mm + `FIT_CLEARANCE`, 0.2 mm). Pick the smallest hole an M2.5 screw passes through freely. `FIT_CLEARANCE` also sizes every slot and sliding fit, so it matters most.
+  - **1 groove: M3 insert hole** (4.0 mm), with the same lead-in as the parts. Press an insert into each hole (see [fitting inserts](#fitting-inserts)). Pick the one it goes into straight and flush, without plastic bulging up around it, and doesn't turn when a screw is tightened into it.
+  - **2 grooves: M2.5 insert hole** (3.2 mm), for the ULN2003 and PCA9685. Test it the same way.
+  - **3 grooves: M3 clearance** (3.2 mm + `FIT_CLEARANCE`, 0.2 mm). Pick the smallest hole an M3 screw passes through freely. `FIT_CLEARANCE` also sizes every slot and sliding fit, so it matters most.
   - Shift each value by 0.1 mm for every hole away from the middle, and re-export.
 
 ## Wiring
@@ -368,7 +360,7 @@ The order matters in a few places, marked **Order**: some screws can't be reache
     - Press the elbow, gripper, and camera leads into the link clips.
     - Route them behind the shoulder and over the yaw bracket into the hood, then down the column to channels 2–4.
     - Check every lead stays clear as you swing each joint through its range by hand, with the power off.
-    - Snap on the hood lid. Fit the column door: hook its top behind the opening's top edge, then swing the bottom in until both latch barbs click through their slots. To open it, push the two barbs towards the middle and swing the bottom out.
+    - Snap on the hood lid. Fit the column door: hold it a few millimetres low with its bottom tilted out, push its two top hooks in through the top of the opening, and lift it so they catch behind the wall above. Then swing the bottom in until both latch barbs click through their slots. To open it, push the two barbs towards the middle and swing the bottom out.
 14. **Calibrate:** see below.
 
 ## Calibration

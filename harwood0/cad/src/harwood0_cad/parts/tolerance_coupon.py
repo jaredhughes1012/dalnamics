@@ -3,14 +3,16 @@
 Three rows of holes, each stepping through diameters around one of the sizes the
 robot's screws use. Each row is marked by grooves engraved at its small end:
 
-- 1 groove: M2.5 heat-set insert hole (M2_5_INSERT_HOLE_D).
-- 2 grooves: M3 heat-set insert hole (M3_INSERT_HOLE_D), for when the structural screws are M3.
-- 3 grooves: M2.5 clearance (M2_5_CLEARANCE_D, set by FIT_CLEARANCE), for the holes screws pass through.
+- 1 groove: M3 heat-set insert hole (M3.insert_hole_d), for the structural screws.
+- 2 grooves: M2.5 heat-set insert hole (M2_5.insert_hole_d), for the ULN2003 and PCA9685.
+- 3 grooves: M3 clearance (M3.clearance_d, set by FIT_CLEARANCE), for the holes screws pass through.
+
+The insert holes open on top into the same lead-in the parts' insert holes have.
 
 Holes step up by HOLE_STEP from the grooved end; the middle hole of each row is the
 current size. Press an insert into each insert hole with the iron and pick the one it
 goes in straight, flush and tight, without plastic bulging around it or the insert
-turning when a screw is tightened; push an M2.5 screw through the clearance holes and
+turning when a screw is tightened; push an M3 screw through the clearance holes and
 pick the smallest it passes freely. Then shift the matching value in params.py by
 HOLE_STEP for each hole away from the middle, and re-export.
 
@@ -32,10 +34,11 @@ GROOVE_PITCH = 1.8
 GROOVE_DEPTH = 0.6
 GROOVE_L = 5.0
 
+# Each row's nominal diameter, and its lead-in's diameter if it holds inserts.
 ROWS = (
-    p.M2_5_INSERT_HOLE_D,
-    p.M3_INSERT_HOLE_D,
-    p.M2_5_CLEARANCE_D,
+    (p.M3.insert_hole_d, p.M3.insert_lead_in_d),
+    (p.M2_5.insert_hole_d, p.M2_5.insert_lead_in_d),
+    (p.M3.clearance_d, None),
 )  # from the back row to the front
 
 
@@ -51,11 +54,14 @@ def tolerance_coupon() -> Part:
     coupon = box((x0, length / 2), (-width / 2, width / 2), (0, THICKNESS))
     coupon = fillet(coupon.edges().filter_by(Axis.Z), radius=2.0)
 
-    for row, nominal in enumerate(ROWS):
+    for row, (nominal, lead_in_d) in enumerate(ROWS):
         y = ((len(ROWS) - 1) / 2 - row) * PITCH
         for col, diameter in enumerate(hole_diameters(nominal)):
             x = x0 + MARK_W + PITCH * (col + 0.5)
             coupon -= cylinder(diameter / 2, (-1, THICKNESS + 1), at=(x, y))
+            if lead_in_d:
+                lead_in = (THICKNESS - p.INSERT_LEAD_IN_DEPTH, THICKNESS + 1)
+                coupon -= cylinder(lead_in_d / 2, lead_in, at=(x, y))
         for i in range(row + 1):
             gx = x0 + 2.5 + i * GROOVE_PITCH
             coupon -= box(

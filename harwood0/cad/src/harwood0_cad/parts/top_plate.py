@@ -108,9 +108,9 @@ def top_plate() -> Part:
     for x in (POCKET_X[0] + LIP_SCREW_INSET, POCKET_X[1] - LIP_SCREW_INSET):
         for y in (SLOT_Y - LIP_SCREW_Y, SLOT_Y + LIP_SCREW_Y):
             # Inserts pressed in from the pocket floor, on bosses under the plate.
-            boss_z = (SLOT_FLOOR_Z - p.INSERT_DEPTH, 0.1)
-            plate += cylinder(p.INSERT_BOSS_D / 2, boss_z, at=(x, y))
-            plate -= insert_hole(SLOT_FLOOR_Z, -1, (x, y))
+            boss_z = (SLOT_FLOOR_Z - p.STRUCTURAL_SCREW.insert_depth, 0.1)
+            plate += cylinder(p.STRUCTURAL_SCREW.insert_boss_d / 2, boss_z, at=(x, y))
+            plate -= insert_hole(p.STRUCTURAL_SCREW, SLOT_FLOOR_Z, -1, (x, y))
 
     plate -= snap_slots()
 

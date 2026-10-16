@@ -52,22 +52,23 @@ def yaw_bracket() -> Part:
     for i in range(4):
         angle = math.radians(45 + 90 * i)
         at = (STD_HORN_SCREW_R * math.cos(angle), STD_HORN_SCREW_R * math.sin(angle))
-        bracket -= cylinder(p.M3_CLEARANCE_D / 2 - 0.2, (-TOP_T - 1, 1), at=at)
+        bracket -= cylinder(p.M3.clearance_d / 2 - 0.2, (-TOP_T - 1, 1), at=at)
 
     plate_x = (TAB_FACE_X - PLATE_T, TAB_FACE_X)
     plate = box(plate_x, (-HALF_W, HALF_W), (bottom, -TOP_T + 0.1))
     c = p.SERVO_FIT_CLEARANCE
     hl, hw = STD_SERVO_BODY_L / 2 + c, STD_SERVO_BODY_W / 2 + c
     plate -= box((plate_x[0] - 1, plate_x[1] + 1), (-hw, hw), (BODY_Z - hl, BODY_Z + hl))
-    # A notch at the top (shaft) end for the servo's lead, so it slides straight in.
-    lw = STD_SERVO_LEAD_W / 2 + c
+    # A notch at the top (shaft) end for the servo's lead, so it slides straight in. Only as
+    # wide as the lead, since it runs between the tab screws.
+    lw = STD_SERVO_LEAD_W / 2 + p.FIT_CLEARANCE
     lead_z = (BODY_Z + hl - 1, BODY_Z + hl + STD_SERVO_LEAD_REACH + c)
     plate -= box((plate_x[0] - 1, plate_x[1] + 1), (-lw, lw), lead_z)
     along, across = STD_SERVO_TAB_HOLES
     for dz in (-along / 2, along / 2):
         for y in (-across / 2, across / 2):
             plate -= cylinder(
-                p.SCREW_CLEARANCE_D / 2,
+                p.STRUCTURAL_SCREW.clearance_d / 2,
                 (plate_x[0] - 1, plate_x[1] + 1),
                 axis="x",
                 at=(y, BODY_Z + dz),

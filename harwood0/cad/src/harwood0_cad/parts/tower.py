@@ -63,7 +63,7 @@ from harwood0_cad.hardware.motors import (
     STD_SERVO_SHAFT_OFFSET,
     STD_SERVO_TAB_HOLES,
 )
-from harwood0_cad.parts.fasteners import insert_hole, nut_pocket
+from harwood0_cad.parts.fasteners import insert_hole, nut_corner_r, nut_pocket
 from harwood0_cad.parts.snaps import snap_arms, snap_slots
 from harwood0_cad.shapes import box, cylinder
 
@@ -78,8 +78,9 @@ COLUMN_R = 4.0
 COLUMN_INBOARD_FACE = COLUMN_TOP[1][1] - COLUMN_WALL  # inside face of the inboard wall
 COLUMN_OUTBOARD = COLUMN_TOP[1][0]  # outside face of the outboard wall
 
-# Hood-to-column joint: corner blocks at the top of the column take the hood's screws.
-JOINT_BLOCK = 7.0
+# Hood-to-column joint: corner blocks at the top of the column take the hood's screws. Wide
+# enough to set each screw's head clear of the hood's walls at M3.
+JOINT_BLOCK = 7.4
 JOINT_BLOCK_H = 12.0
 _IX = COLUMN_TOP[0][1] - COLUMN_WALL  # column interior half-width at the top
 HOOD_SCREWS = tuple(
@@ -104,16 +105,19 @@ HOOD_FRONT_R = 10.0
 LID_T = 3.0
 LID_Z = HOOD_TOP_Z - LID_T  # lid underside, where the hood's walls end
 LID_EDGE_R = 2.0
-TAB_BOSS_D = 7.6  # round the nut pockets, just clear of the servo window
+TAB_BOSS_D = 2 * (
+    nut_corner_r(p.STRUCTURAL_SCREW) + 0.9
+)  # round the nut pockets, just clear of the servo body
 TAB_BOSS_H = 3.0
 YAW_SERVO_BODY_Y = YAW_Y - STD_SERVO_SHAFT_OFFSET  # body centre, towards the column
 
 # The lid's snap arms, on the hood's side walls clear of the yaw servo: one pair over the
-# column and one pair near the front.
+# column, between the hood screws so a driver reaches them straight down, and one pair near
+# the front.
 HOOD_SNAPS = tuple(
     ((side * (HOOD_X - HOOD_WALL), y), 180.0 if side > 0 else 0.0)
     for side in (-1, 1)
-    for y in (4.0, YAW_Y + 15.0)
+    for y in (-4.5, YAW_Y + 15.0)
 )
 
 # Arm cable hole in the hood floor, past the yaw servo's tab bosses.
@@ -122,7 +126,7 @@ ARM_CABLE_HOLE = ((-8.0, 8.0), (YAW_SERVO_BODY_Y + 29.0, HOOD_Y[1] - HOOD_WALL -
 # Servo driver: inside the column on its inboard wall, long axis vertical, components
 # facing the door. Its bosses stand it just off the wall so the screws have something to bite.
 DRIVER_CENTER_Z = 98.0
-DRIVER_BOSS_D = p.INSERT_BOSS_D
+DRIVER_BOSS_D = p.PCA9685_SCREW.insert_boss_d
 DRIVER_BOSS_H = 2.5
 DRIVER_PCB_Y = COLUMN_INBOARD_FACE - DRIVER_BOSS_H  # the board's back face
 # Where the board sits: its long axis vertical, components facing the door (-Y).
@@ -135,6 +139,12 @@ DOOR_OVERLAP = 3.0
 DOOR_T = COLUMN_WALL
 DOOR_HOOK_X = (2.0, 6.0)  # each top hook's span either side of centre
 DOOR_CLEARANCE = 0.2
+# Each top hook's leg stands up behind the wall above the opening. Its front face leans back
+# from the wall towards its foot, so the hung door can swing its bottom out far enough to
+# clear the latch barbs; at the top it sits close to the wall, holding the closed door snug.
+DOOR_HOOK_LEG_T = 2.0  # from the wall's inside face to the leg's back
+DOOR_HOOK_LEG_H = 3.0  # above the opening
+DOOR_HOOK_TAPER = 0.6  # extra room at the leg's foot
 
 # The door's latch: an arm each side, standing up inside the column against the outboard wall
 # from a root below the opening. Its barb reaches out through a slot in the door and hooks
@@ -180,7 +190,9 @@ def tower() -> Part:
     )  # out to the column's outboard face
     body = box((-CARRIAGE_HALF_L, CARRIAGE_HALF_L), flange_y, flange_z)
     for x, y in CARRIAGE_SCREWS:
-        body -= cylinder(p.SCREW_CLEARANCE_D / 2, (flange_z[0] - 1, flange_z[1] + 1), at=(x, y))
+        body -= cylinder(
+            p.STRUCTURAL_SCREW.clearance_d / 2, (flange_z[0] - 1, flange_z[1] + 1), at=(x, y)
+        )
 
     top = HOOD_FLOOR_Z
     body += loft([_section(COLUMN_BASE, flange_z[1] - 0.1), _section(COLUMN_TOP, top)])
@@ -195,7 +207,7 @@ def tower() -> Part:
     for x, y in HOOD_SCREWS:
         half = JOINT_BLOCK / 2
         block = box((x - half, x + half), (y - half, y + half), (top - JOINT_BLOCK_H, top))
-        body += block - insert_hole(top, -1, (x, y))
+        body += block - insert_hole(p.STRUCTURAL_SCREW, top, -1, (x, y))
 
     # Servo driver bosses on the inside of the inboard wall.
     hz, hx = PCA9685_L / 2 - PCA9685_HOLE_INSET, PCA9685_W / 2 - PCA9685_HOLE_INSET
@@ -206,12 +218,8 @@ def tower() -> Part:
                 DRIVER_BOSS_D / 2, (DRIVER_PCB_Y, COLUMN_INBOARD_FACE + 0.5), axis="y", at=at
             )
             # Through the wall: the insert goes in from the board's side.
-            body -= cylinder(
-                p.INSERT_HOLE_D / 2,
-                (DRIVER_PCB_Y - 1, COLUMN_INBOARD_FACE + COLUMN_WALL + 1),
-                axis="y",
-                at=at,
-            )
+            through = COLUMN_INBOARD_FACE + COLUMN_WALL + 1 - DRIVER_PCB_Y
+            body -= insert_hole(p.PCA9685_SCREW, DRIVER_PCB_Y, 1, at, axis="y", depth=through)
 
     (ox0, ox1), (oz0, oz1) = DOOR_OPENING
     body -= box((ox0, ox1), (COLUMN_OUTBOARD - 1, COLUMN_OUTBOARD + COLUMN_WALL + 1), (oz0, oz1))
@@ -264,7 +272,7 @@ def hood() -> Part:
     body += snap_arms(LID_Z, HOOD_SNAPS, LID_T)
 
     # Yaw servo: through a window in the floor, tabs bolted up through bosses into nuts
-    # held in pockets on the bosses' tops, flats towards the middle.
+    # held in pockets on the bosses' tops, flats towards the window.
     c = p.SERVO_FIT_CLEARANCE
     hl, hw = STD_SERVO_BODY_L / 2 + c, STD_SERVO_BODY_W / 2 + c
     along, across = STD_SERVO_TAB_HOLES
@@ -273,12 +281,14 @@ def hood() -> Part:
             at = (x, YAW_SERVO_BODY_Y + dy)
             body += cylinder(TAB_BOSS_D / 2, (floor_top - 0.1, floor_top + TAB_BOSS_H), at=at)
             screw_z = (HOOD_FLOOR_Z - 1, floor_top + TAB_BOSS_H + 1)
-            body -= cylinder(p.SCREW_CLEARANCE_D / 2, screw_z, at=at)
-            body -= nut_pocket(floor_top + TAB_BOSS_H, -1, at)
+            body -= cylinder(p.STRUCTURAL_SCREW.clearance_d / 2, screw_z, at=at)
+            body -= nut_pocket(p.STRUCTURAL_SCREW, floor_top + TAB_BOSS_H, -1, at, angle=30.0)
     floor_z = (HOOD_FLOOR_Z - 1, floor_top + 1)
     body -= box((-hw, hw), (YAW_SERVO_BODY_Y - hl, YAW_SERVO_BODY_Y + hl), floor_z)
-    # A notch at the shaft end for the servo's lead, so it pushes straight up.
-    lw = STD_SERVO_LEAD_W / 2 + c
+    # A notch at the shaft end for the servo's lead, so it pushes straight up. Only as wide as
+    # the lead, since it runs between the tab screws: it opens the inside corner of their nut
+    # pockets, but the other faces still stop the nuts turning.
+    lw = STD_SERVO_LEAD_W / 2 + p.FIT_CLEARANCE
     lead_y = (YAW_SERVO_BODY_Y + hl - 1, YAW_SERVO_BODY_Y + hl + STD_SERVO_LEAD_REACH + c)
     body -= box((-lw, lw), lead_y, (HOOD_FLOOR_Z - 1, floor_top + TAB_BOSS_H + 1))
 
@@ -287,7 +297,7 @@ def hood() -> Part:
     body -= box(*ARM_CABLE_HOLE, floor_z)
     body -= box(*COLUMN_PASS, floor_z)
     for x, y in HOOD_SCREWS:
-        body -= cylinder(p.SCREW_CLEARANCE_D / 2, floor_z, at=(x, y))
+        body -= cylinder(p.STRUCTURAL_SCREW.clearance_d / 2, floor_z, at=(x, y))
     return body
 
 
@@ -309,11 +319,15 @@ def tower_door() -> Part:
     door = box((ox0 - o, ox1 + o), y, (oz0 - o, oz1 + o))
 
     # Top hooks: through the opening, then up behind the wall above it. The door hangs on them.
-    behind = (COLUMN_OUTBOARD + COLUMN_WALL + c, COLUMN_OUTBOARD + COLUMN_WALL + 1.2)
+    wall = COLUMN_OUTBOARD + COLUMN_WALL  # inside face of the outboard wall
+    foot = wall + c + DOOR_HOOK_TAPER
+    back = wall + DOOR_HOOK_LEG_T
+    top = oz1 + DOOR_HOOK_LEG_H
+    leg = [(wall + c, top), (back, top), (back, oz1 - 4.0), (foot, oz1 - 4.0), (foot, oz1)]
     for sx in (-1, 1):
         hx = sorted((sx * DOOR_HOOK_X[0], sx * DOOR_HOOK_X[1]))
-        door += box(hx, (y[1] - 0.1, behind[1]), (oz1 - 4.0, oz1 - c))
-        door += box(hx, behind, (oz1 - 4.0, oz1 + 3.0))
+        door += box(hx, (y[1] - 0.1, foot + 0.1), (oz1 - 4.0, oz1 - c))
+        door += _yz_prism(leg, hx)
 
     # Slots for the latch arms' barbs, with room for each arm to flex towards the middle.
     z = (LATCH_BARB_Z + LATCH_Y[0] - COLUMN_OUTBOARD - 0.5, LATCH_TOP_Z + 0.5)

@@ -101,11 +101,11 @@ def carriage() -> Part:
     )
     # Inserts for the ear screws, pressed in from the motor's side; bosses on the far side
     # make up the plate to the insert's depth.
-    boss_y = (plate_y[1] - p.INSERT_DEPTH, plate_y[0] + 0.1)
+    boss_y = (plate_y[1] - p.STRUCTURAL_SCREW.insert_depth, plate_y[0] + 0.1)
     for x in (-BYJ_EAR_SPACING / 2, BYJ_EAR_SPACING / 2):
         at = (x, STEPPER_BODY_Z)
-        plate += cylinder(p.INSERT_BOSS_D / 2, boss_y, axis="y", at=at)
-        plate -= insert_hole(plate_y[1], -1, at, axis="y")
+        plate += cylinder(p.STRUCTURAL_SCREW.insert_boss_d / 2, boss_y, axis="y", at=at)
+        plate -= insert_hole(p.STRUCTURAL_SCREW, plate_y[1], -1, at, axis="y")
     body += plate
 
     # Room for the stepper body between the motor plate and the deck.
@@ -116,5 +116,5 @@ def carriage() -> Part:
         at=(0, STEPPER_BODY_Z),
     )
     for x, y in CARRIAGE_SCREWS:
-        body -= insert_hole(deck_top, -1, (x, y))
+        body -= insert_hole(p.STRUCTURAL_SCREW, deck_top, -1, (x, y))
     return body - box(*CABLE_HOLE, (CARRIAGE_DECK_Z[0] - 1, deck_top + 1))

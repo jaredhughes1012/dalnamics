@@ -39,7 +39,11 @@ def track_lip() -> Part:
     lip = extrude(make_face(profile), amount=length, dir=(1, 0, 0))
     for x in (LIP_SCREW_INSET - c, length - LIP_SCREW_INSET + c):
         lip -= cylinder(
-            p.SCREW_CLEARANCE_D / 2, (SLOT_FLOOR_Z - 1, TRACK_T + 1), at=(x, LIP_SCREW_Y)
+            p.STRUCTURAL_SCREW.clearance_d / 2, (SLOT_FLOOR_Z - 1, TRACK_T + 1), at=(x, LIP_SCREW_Y)
         )
-        lip -= cylinder(p.SCREW_HEAD_D / 2 + 0.2, (TRACK_T - 2.5, TRACK_T + 1), at=(x, LIP_SCREW_Y))
+        head_z = (
+            TRACK_T - p.STRUCTURAL_SCREW.head_h - 0.3,
+            TRACK_T + 1,
+        )  # the head sits below the top
+        lip -= cylinder(p.STRUCTURAL_SCREW.head_d / 2 + 0.2, head_z, at=(x, LIP_SCREW_Y))
     return lip

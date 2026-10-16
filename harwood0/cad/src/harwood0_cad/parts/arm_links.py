@@ -102,7 +102,7 @@ def upper_arm() -> Part:
     for i in range(4):
         angle = math.radians(45 + 90 * i)
         at = (STD_HORN_SCREW_R * math.cos(angle), STD_HORN_SCREW_R * math.sin(angle))
-        link -= cylinder(p.M3_CLEARANCE_D / 2 - 0.2, (-1, LINK_T + 1), axis="x", at=at)
+        link -= cylinder(p.M3.clearance_d / 2 - 0.2, (-1, LINK_T + 1), axis="x", at=at)
     link -= _mg90s_mount(LINK_T, length)
     # The upper arm is mounted mirrored, so its -Z edge is the top one.
     for y in UPPER_ARM_CLIPS:
@@ -116,14 +116,16 @@ def forearm() -> Part:
 
     tip_end = GRIPPER_Y + BASE_HALF_Y
     arm = _bar((0, FOREARM_T), (-8, tip_end - LINK_W / 2), LINK_W / 2)
-    pad_z = BASE_SCREW_Z + p.SCREW_HEAD_D / 2 + 1.5  # round the base's screw heads
+    pad_z = BASE_SCREW_Z + p.STRUCTURAL_SCREW.head_d / 2 + 1.5  # round the base's screw heads
     arm += box((0, FOREARM_T), (GRIPPER_Y - BASE_HALF_Y, tip_end), (-pad_z, pad_z))
     arm += cylinder(MG90S_HORN_LENGTH / 2 + 2, (0, FOREARM_T), axis="x")
     arm -= _mg90s_horn_pocket(0)
     arm -= _mg90s_mount(FOREARM_T, GRIPPER_Y)
     for y, z in BASE_SCREWS:
-        arm -= cylinder(p.SCREW_CLEARANCE_D / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z))
-        arm -= cylinder(p.SCREW_HEAD_D / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
+        arm -= cylinder(
+            p.STRUCTURAL_SCREW.clearance_d / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z)
+        )
+        arm -= cylinder(p.STRUCTURAL_SCREW.head_d / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
     for y in FOREARM_CLIPS:
         arm += _wire_clip(y, 1)
     return arm

@@ -96,7 +96,7 @@ def _motor_mounts(shell: Part) -> Part:
             wall = sorted((side * (p.MOTOR_FACE_Y - 1), side * (p.MOTOR_WALL_Y + 1)))
             shell -= cylinder((GA25_BOSS_D + 1) / 2, wall, axis="y", at=(x, AXLE_H))
             for dx in (-GA25_FACE_HOLE_SPACING / 2, GA25_FACE_HOLE_SPACING / 2):
-                shell -= cylinder(p.M3_CLEARANCE_D / 2, wall, axis="y", at=(x + dx, AXLE_H))
+                shell -= cylinder(p.M3.clearance_d / 2, wall, axis="y", at=(x + dx, AXLE_H))
 
             sy = side * SADDLE_Y
             saddle = box((x - 10, x + 10), (sy - 2, sy + 2), (FLOOR - 0.1, AXLE_H))
@@ -109,16 +109,19 @@ def _board_standoffs() -> Part:
     """Standoffs for the two screwed-down boards. The battery, UBEC, and TB6612s are taped
     to the floor."""
     ux, uy = p.UNO_ORIGIN
-    standoffs = [(ux - hx, uy - hy) for hx, hy in UNO_HOLES]  # board is rotated 180 deg
+    # The Uno is rotated 180 deg.
+    standoffs = [((ux - hx, uy - hy), p.UNO_SCREW) for hx, hy in UNO_HOLES]
     cx, cy = p.ULN2003_CENTER
     ix, iy = ULN2003_L / 2 - ULN2003_HOLE_INSET, ULN2003_W / 2 - ULN2003_HOLE_INSET
-    standoffs += [(cx + sx * ix, cy + sy * iy) for sx in (-1, 1) for sy in (-1, 1)]
+    standoffs += [
+        ((cx + sx * ix, cy + sy * iy), p.ULN2003_SCREW) for sx in (-1, 1) for sy in (-1, 1)
+    ]
     top = FLOOR + p.UNO_STANDOFF_H
     mounts = None
-    for x, y in standoffs:
-        standoff = cylinder(p.BOARD_STANDOFF_D / 2, (FLOOR - 0.1, top), at=(x, y))
+    for at, screw in standoffs:
+        standoff = cylinder(screw.insert_boss_d / 2, (FLOOR - 0.1, top), at=at)
         mounts = standoff if mounts is None else mounts + standoff
-        mounts -= insert_hole(top, -1, (x, y))
+        mounts -= insert_hole(screw, top, -1, at)
     return mounts
 
 

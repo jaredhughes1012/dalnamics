@@ -24,7 +24,7 @@ FEATURES = [
     ("hood", (0.0, 74.8, 155.3), False, "arm cable hole in the hood floor"),
     ("hood", (0.0, 30.0, 185.0), False, "hood open on top, under the lid"),
     ("hood_lid", (0.0, 30.0, 185.0), True, "hood lid"),
-    ("hood", (11.5, 4.0, 175.0), True, "hood lid snap arm"),
+    ("hood", (11.5, -4.5, 175.0), True, "hood lid snap arm"),
     ("carriage", (0.0, 0.0, 37.0), False, "deck cable hole"),
     ("carriage", (-11.0, 5.25, 30.0), False, "motor plate wire notch"),
     ("carriage", (-30.0, 30.0, 7.5), True, "ribbon clamp tab"),
@@ -42,6 +42,11 @@ FEATURES = [
     ("forearm", (10.5, 18.0, 13.8), True, "forearm wire clip"),
     ("forearm", (10.5, 18.0, 12.0), False, "forearm wire clip's side gap"),
     ("gripper_base", (20.0, 52.0, 14.7), True, "arm camera cradle rail"),
+    # Between the insert hole's and its lead-in's radius, at a carriage deck screw.
+    ("carriage", (-21.0 + 2.1, -16.0, 38.5), False, "insert lead-in"),
+    ("carriage", (-21.0 + 2.1, -16.0, 37.0), True, "insert hole below its lead-in"),
+    ("tolerance_coupon", (4.5 + 2.1, 10.0, 5.5), False, "coupon insert lead-in"),
+    ("tolerance_coupon", (4.5 + 2.1, 10.0, 3.0), True, "coupon insert hole below its lead-in"),
 ]
 
 

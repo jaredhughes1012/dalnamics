@@ -50,7 +50,7 @@ The conventions match the CAD (`cad/src/harwood0_cad/arm.py`):
   - `yaw`: 0 points the arm across the table, -90 straight ahead, +90 to the rear.
   - `shoulder`: the upper arm's elevation above horizontal.
   - `elbow`: the forearm's bend relative to the upper arm, negative bending down.
-  - `grip`: the gripper gear's turn, 0 closed; 90 opens the fingers about 36 mm apart.
+  - `grip`: the gripper gear's turn, 0 closed; 40 opens the fingers about 17 mm apart.
 - **Track** position `x` is the carriage centre in mm along the body, positive towards the nose, 0 at the middle of the track.
 
 The ranges are reported by `info` under `limits`. The firmware enforces only joint and track ranges: some combinations within them (for example the shoulder pointing down with the elbow straight) drive the arm into the table or body, so the controller must avoid them.

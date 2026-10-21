@@ -106,7 +106,7 @@ The screws are M3, except into the ULN2003 and PCA9685, whose mounting holes are
 | Yaw servo tabs → hood floor | 4 | M3 × 10, driven up from below | Nut, in the pocket on top of each boss |
 | Shoulder servo tabs → yaw bracket | 4 | M3 × 10, in from behind the plate | Nut, on top of each tab |
 | Gripper base → forearm | 2 | M3 × 8, from the forearm's back face | Insert |
-| Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos | The horn |
+| Disc horns → yaw bracket and upper arm | 6 | Supplied with the servos. The yaw bracket takes two, in the horn's holes on its open-back side: its tab plate runs under the other two. | The horn |
 | Disc horn centre screws | 2 | Supplied with the servos, through the part's centre hole | The servo's spline |
 | MG90S horn screws, through the forearm and the gripper gear | 2 | M2 × 8 (elbow) and M2 × 6 (gripper); the supplied screws are too short. Check the spline's screw depth first. | The servo's spline |
 | MG90S tab screws | | Supplied with the servos | Self-tapping into printed pilot holes |
@@ -339,7 +339,7 @@ The order matters in a few places, marked **Order**: some screws can't be reache
    - Screw the hood onto the column through the hood floor, with the lid off.
 9. **Centre the servos** before fitting any horn, so each joint's zero lands where the firmware expects:
    - Flash the firmware, plug every servo into its channel, and power up.
-   - Send `{"id":1,"cmd":"arm","args":{"yaw":0,"shoulder":0,"elbow":-85,"grip":45}}`. This is the centre of every joint's range, and every servo moves to its 1500 µs centre.
+   - Send `{"id":1,"cmd":"arm","args":{"yaw":0,"shoulder":0,"elbow":-70,"grip":20}}`. This is the centre of every joint's range, and every servo moves to its 1500 µs centre.
    - Fit each horn below in the pose described.
 10. **Yaw bracket.**
     - Seat the yaw servo's disc horn in the pocket on top of the bracket and screw it on from below.
@@ -353,10 +353,10 @@ The order matters in a few places, marked **Order**: some screws can't be reache
 12. **Forearm and gripper.** **Order**: the gripper servo goes into the forearm before the gripper base covers its tab screws.
     - Drop the gripper servo into the forearm's window bottom first, from the front face, and screw its tabs on.
     - Screw the gripper base on from the forearm's back face.
-    - Slide the two jaws into their grooves from the side, open the same distance (about 19 mm between the fingers, which is grip 45).
+    - Slide the two jaws into their grooves from the side, open the same distance (about 9 mm between the fingers, which is grip 20).
     - Put the horn, trimmed to 16 mm tip to tip, in the gear's back pocket. Fit the gear onto the spline between the racks, and fit the horn screw.
     - Slide the arm camera into its cradle.
-    - Fit the forearm onto the elbow spline bent 85° down from the upper arm (elbow −85), and fit the centre screw.
+    - Fit the forearm onto the elbow spline bent 70° down from the upper arm (elbow −70), and fit the centre screw.
 13. **Arm wiring.**
     - Press the elbow, gripper, and camera leads into the link clips.
     - Route them behind the shoulder and over the yaw bracket into the hood, then down the column to channels 2–4.
@@ -410,6 +410,7 @@ To use OCP CAD Viewer, install the recommended VS Code extension. Open the viewe
 - every printed part is a valid solid that fits the print bed;
 - key features exist;
 - nothing in the assembly overlaps a printed part, in every named pose;
+- the elbow folds to its limit without hitting the arm, and the upper arm clears the tower as it yaws;
 - the robot does not tip;
 - each pose reaches its target;
 - every cable has room at its real thickness, across a sweep of arm and carriage positions;

@@ -1,7 +1,7 @@
 """Yaw bracket: hangs from the yaw servo's horn and holds the shoulder servo.
 
-The disc horn seats in the pocket on top and screws on through the holes from
-below (screws supplied with the horn); then fit the bracket and horn onto the yaw
+The disc horn seats in the pocket on top and screws on through the two holes
+from below (screws supplied with the horn); then fit the bracket and horn onto the yaw
 servo's spline and drive the horn's centre screw through the centre hole, since the
 shoulder servo blocks it afterwards. The DS3218 then drops into the window bottom
 first, from the shaft side, its lead through the notch at the window's top end, and
@@ -49,11 +49,12 @@ TAB_FACE_X = FACE_X + STD_SERVO_TAB_TOP - STD_SERVO_TAB_T  # the tabs press on t
 BODY_Z = -SHOULDER_DROP - STD_SERVO_SHAFT_OFFSET  # shoulder servo body centre
 BACK_X = FACE_X - STD_SERVO_BODY_H - 2.0  # the bracket's open back
 
-# The top covers the horn's pocket, and the horn screws' heads, under the top, clear the plate.
-assert TAB_FACE_X - (STD_HORN_D / 2 + p.FIT_CLEARANCE) >= 2.0, "top does not cover the yaw horn"
-assert TAB_FACE_X - PLATE_T - STD_HORN_SCREW_R - p.M3.head_d / 2 >= 1.0, (
-    "tab plate blocks the yaw horn's screws"
-)
+# The horn takes two screws, in its two holes on the open-back side: the tab plate runs under the
+# other two, so a screw can't go in there from below. Its centre screw also holds it.
+HORN_SCREW_ANGLES = (135.0, 225.0)
+for _a in HORN_SCREW_ANGLES:
+    _x = STD_HORN_SCREW_R * math.cos(math.radians(_a))
+    assert TAB_FACE_X - PLATE_T - _x - p.M3.head_d / 2 >= 1.0, "tab plate blocks a horn screw"
 
 
 def yaw_bracket() -> Part:
@@ -61,8 +62,7 @@ def yaw_bracket() -> Part:
     bracket = box((BACK_X, TAB_FACE_X), (-HALF_W, HALF_W), (-TOP_T, 0))
     bracket -= cylinder(STD_HORN_D / 2 + p.FIT_CLEARANCE, (-STD_HORN_POCKET, 0.1))
     bracket -= cylinder(STD_HORN_CENTRE_HOLE_D / 2, (-TOP_T - 1, 1))
-    for i in range(4):
-        angle = math.radians(45 + 90 * i)
+    for angle in map(math.radians, HORN_SCREW_ANGLES):
         at = (STD_HORN_SCREW_R * math.cos(angle), STD_HORN_SCREW_R * math.sin(angle))
         bracket -= cylinder(p.M3.clearance_d / 2, (-TOP_T - 1, 1), at=at)
 

@@ -34,7 +34,8 @@ void test_mecanum_scales_down_together() {
 }
 
 void test_joint_limits() {
-  TEST_ASSERT_TRUE(motion::inRange(motion::kElbow, -170.0f));
+  TEST_ASSERT_TRUE(motion::inRange(motion::kElbow, -140.0f));
+  TEST_ASSERT_FALSE(motion::inRange(motion::kElbow, -141.0f));
   TEST_ASSERT_FALSE(motion::inRange(motion::kElbow, 1.0f));
   TEST_ASSERT_FALSE(motion::inRange(motion::kGrip, -0.5f));
   for (int j = 0; j < motion::kJointCount; j++) {
@@ -45,7 +46,7 @@ void test_joint_limits() {
 }
 
 void test_pulse_is_centred_on_the_joint_centre() {
-  TEST_ASSERT_EQUAL_FLOAT(1500.0f, motion::pulseUs(motion::kElbow, -85.0f, 1500.0f, 11.1f));
+  TEST_ASSERT_EQUAL_FLOAT(1500.0f, motion::pulseUs(motion::kElbow, -70.0f, 1500.0f, 11.1f));
   TEST_ASSERT_EQUAL_FLOAT(1611.0f, motion::pulseUs(motion::kYaw, 10.0f, 1500.0f, 11.1f));
   TEST_ASSERT_EQUAL_FLOAT(1389.0f, motion::pulseUs(motion::kYaw, 10.0f, 1500.0f, -11.1f));
 }

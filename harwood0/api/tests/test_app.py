@@ -44,9 +44,9 @@ def test_info(client):
     assert body["commands"] == ["ping", "info", "stop", "drive", "arm", "track", "home", "state"]
     assert body["limits"] == {
         "yaw": [-90, 90],
-        "shoulder": [-90, 90],
-        "elbow": [-170, 0],
-        "grip": [0, 90],
+        "shoulder": [-60, 60],
+        "elbow": [-140, 0],
+        "grip": [0, 40],
         "track": [-65, 65],
         "drive_ms": 5000,
     }
@@ -95,11 +95,11 @@ def test_drive_rejects_bad_body(client, body):
 
 
 def test_arm_slews_from_park_pose(client, clock):
-    assert client.post("/robot/arm", json={"shoulder": 15, "grip": 90}).status_code == 204
+    assert client.post("/robot/arm", json={"shoulder": 15, "grip": 40}).status_code == 204
     arm = state(client)["arm"]
     assert arm["enabled"]
     assert arm["joints"] == {"yaw": 0.0, "shoulder": 45.0, "elbow": -130.0, "grip": 0.0}
-    assert arm["targets"] == {"yaw": 0.0, "shoulder": 15.0, "elbow": -130.0, "grip": 90.0}
+    assert arm["targets"] == {"yaw": 0.0, "shoulder": 15.0, "elbow": -130.0, "grip": 40.0}
 
     clock.advance(0.25)  # 15 degrees at 60 deg/s
     assert state(client)["arm"]["joints"] == {

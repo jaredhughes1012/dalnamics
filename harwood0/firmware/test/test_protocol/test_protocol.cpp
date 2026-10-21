@@ -64,7 +64,7 @@ void test_info_lists_commands_and_limits() {
   TEST_ASSERT_EQUAL_STRING("harwood0", res["result"]["name"]);
   TEST_ASSERT_EQUAL(protocol::kVersion, res["result"]["protocol"].as<int>());
   TEST_ASSERT_EQUAL(8, res["result"]["commands"].size());
-  TEST_ASSERT_EQUAL_FLOAT(-170.0f, res["result"]["limits"]["elbow"][0].as<float>());
+  TEST_ASSERT_EQUAL_FLOAT(-140.0f, res["result"]["limits"]["elbow"][0].as<float>());
   TEST_ASSERT_EQUAL_FLOAT(65.0f, res["result"]["limits"]["track"][1].as<float>());
 }
 

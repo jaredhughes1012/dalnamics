@@ -72,9 +72,9 @@ HOOD_FLOOR_Z = (
 # servo's shaft points -X, so the upper arm hangs on the inboard side of the yaw axis; the
 # elbow and gripper servos then fold the chain back towards +X, which brings the fingertips
 # close to the yaw axis's plane and keeps the arm clear of the carriage when it points forward.
-# The shoulder servo's top face sits far enough out that the yaw bracket's top covers the whole
-# yaw horn, and the bracket's tab plate stands clear of the horn's screws, which go in from below.
-SHOULDER_FACE_X = -25.0
+# The shoulder servo's top face. Any further out and the arm's leads, crossing the shoulder axis
+# on the upper arm's outer face, reach the column as the arm yaws towards the rear.
+SHOULDER_FACE_X = -15.0
 UPPER_ARM_X = SHOULDER_FACE_X - STD_HORN_TOP + STD_HORN_POCKET  # upper arm's back face
 
 # Link and jaw thicknesses, and how each MG90S stacks onto the link it is mounted on.

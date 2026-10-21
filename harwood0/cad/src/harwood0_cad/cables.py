@@ -58,6 +58,7 @@ from harwood0_cad.parts.tower import (
     HOOD_FLOOR_Z,
     YAW_SERVO_BODY_Y,
 )
+from harwood0_cad.parts.yaw_bracket import BACK_X, TAB_FACE_X
 from harwood0_cad.shapes import cylinder
 
 SLACK = 1.10  # extra length over the longest path, for routing that is never quite straight
@@ -156,9 +157,14 @@ def _down_column(channel: int) -> list[Anchor]:
     ]
 
 
+# The yaw bracket in the yaw frame, where it is turned half a turn: its open back, and the face
+# of its tab plate on the shoulder side.
+_BEHIND_BRACKET_X = -BACK_X + 2.0
+_BRACKET_TAB_FACE_X = -TAB_FACE_X
+
 # Over the yaw bracket to the hood (yaw frame): above the bracket's top plate and below the
 # yaw servo, beside the yaw axis so the loop into the hood stays short as the arm yaws.
-_BRACKET_TOP: Anchor = ("yaw", (26.0, 17.0, 3.0))
+_BRACKET_TOP: Anchor = ("yaw", (_BEHIND_BRACKET_X, 17.0, 3.0))
 _UP_TO_HOOD = [_BRACKET_TOP, _HOOD_HOLE_BELOW, _HOOD_HOLE_ABOVE]
 
 # Joints are crossed on their axes, where a point does not move as the joint turns, then the
@@ -172,7 +178,7 @@ _BEHIND_SHOULDER_Y = -18.0  # just outside the shoulder disc
 _SHOULDER_CROSSING: list[Anchor] = [
     ("upper_arm", (_SHOULDER_OUTBOARD, 0.0, 0.0)),
     ("yaw", (_SHOULDER_AXIS_X, _BEHIND_SHOULDER_Y, -SHOULDER_DROP)),
-    ("yaw", (26.0, _BEHIND_SHOULDER_Y, -SHOULDER_DROP)),
+    ("yaw", (_BEHIND_BRACKET_X, _BEHIND_SHOULDER_Y, -SHOULDER_DROP)),
 ]
 _ELBOW_CROSSING: list[Anchor] = [
     ("forearm", (9.0, 0.0, 0.0)),
@@ -343,10 +349,10 @@ RUNS: tuple[Run, ...] = (
         _anchored(
             # Out of the notch at the top of the bracket's window, up past the servo's top end,
             # and over the bracket beside the yaw horn.
-            ("yaw", (-6.0, 0.0, -10.0)),
-            ("yaw", (-7.0, 0.0, -5.0)),
-            ("yaw", (-7.0, 15.0, 0.0)),
-            ("yaw", (-5.0, 17.0, 3.0)),
+            ("yaw", (_BRACKET_TAB_FACE_X - 1.0, 0.0, -10.0)),
+            ("yaw", (_BRACKET_TAB_FACE_X - 2.0, 0.0, -5.0)),
+            ("yaw", (_BRACKET_TAB_FACE_X - 2.0, 15.0, 0.0)),
+            ("yaw", (_BRACKET_TAB_FACE_X, 17.0, 3.0)),
             *_UP_TO_HOOD,
             *_down_column(SHOULDER_CHANNEL),
         ),

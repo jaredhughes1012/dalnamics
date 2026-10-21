@@ -187,9 +187,9 @@ class SimTransport:
     JOINTS = ("yaw", "shoulder", "elbow", "grip")
     JOINT_LIMITS: ClassVar[dict[str, tuple[float, float]]] = {
         "yaw": (-90.0, 90.0),
-        "shoulder": (-90.0, 90.0),
-        "elbow": (-170.0, 0.0),
-        "grip": (0.0, 90.0),
+        "shoulder": (-60.0, 60.0),
+        "elbow": (-140.0, 0.0),
+        "grip": (0.0, 40.0),
     }
     PARK_POSE: ClassVar[dict[str, float]] = {
         "yaw": 0.0,

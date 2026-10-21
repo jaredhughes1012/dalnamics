@@ -19,11 +19,11 @@ extern const char* const kJointNames[kJointCount];
 // Joint ranges (degrees). yaw: 0 points the arm across the table, -90 forward.
 // shoulder: elevation above horizontal. elbow: bend relative to the upper arm, negative
 // down. grip: the gripper gear's turn, 0 closed.
-constexpr float kJointMin[kJointCount] = {-90.0f, -90.0f, -170.0f, 0.0f};
-constexpr float kJointMax[kJointCount] = {90.0f, 90.0f, 0.0f, 90.0f};
+constexpr float kJointMin[kJointCount] = {-90.0f, -60.0f, -140.0f, 0.0f};
+constexpr float kJointMax[kJointCount] = {90.0f, 60.0f, 0.0f, 40.0f};
 
 // Joint angle at each servo's centre pulse: the middle of its range, where its horn is fitted.
-constexpr float kJointCentre[kJointCount] = {0.0f, 0.0f, -85.0f, 45.0f};
+constexpr float kJointCentre[kJointCount] = {0.0f, 0.0f, -70.0f, 20.0f};
 
 // Where the firmware assumes the arm is at power-up (the CAD's "park" pose). The first
 // arm command starts each servo here, so leave the arm parked before switching off.

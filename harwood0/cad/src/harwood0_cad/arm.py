@@ -25,7 +25,9 @@ from harwood0_cad.arm_geometry import (
     FINGER_T,
     FINGER_X,
     FOREARM_X,
+    GRIPPER_GEAR_MODULE,
     GRIPPER_GEAR_R,
+    RACK_LENGTH,
     SHOULDER_DROP,
     TRACK_TOP_Z,
     UPPER_ARM_X,
@@ -33,11 +35,22 @@ from harwood0_cad.arm_geometry import (
 )
 from harwood0_cad.track_geometry import SLOT_X, SLOT_Y
 
-# Joint ranges (degrees). The yaw and shoulder servos turn 180 degrees.
+# Joint ranges (degrees). The servos turn 180 degrees; the shoulder and elbow stop short of that.
+# Below -60 the shoulder drives the arm into the carriage, and above 60 into the hood; folded
+# past -140, the forearm and gripper hit the shoulder servo and the yaw bracket. Some
+# combinations inside these ranges still reach the tower or the body (the upper arm meets the
+# hood at yaw 60 or more with the shoulder above 45), so the controller must avoid them.
 YAW_RANGE = (-90.0, 90.0)
-SHOULDER_RANGE = (-90.0, 90.0)
-ELBOW_RANGE = (-170.0, 0.0)
-GRIP_RANGE = (0.0, 90.0)
+SHOULDER_RANGE = (-60.0, 60.0)
+ELBOW_RANGE = (-140.0, 0.0)
+GRIP_RANGE = (0.0, 40.0)
+
+# Fully open, each jaw's rack still has a whole tooth beyond the gear's point of contact.
+_RACK_PITCH = math.pi * GRIPPER_GEAR_MODULE
+_RACK_TEETH_REACH = _RACK_PITCH * math.floor(RACK_LENGTH / 2 / _RACK_PITCH)  # from its centre
+assert GRIPPER_GEAR_R * math.radians(GRIP_RANGE[1]) <= _RACK_TEETH_REACH - _RACK_PITCH + 1e-6, (
+    "the gripper's racks run out of teeth before it is fully open"
+)
 
 # The carriage's centre can travel this far along the track.
 CARRIAGE_RANGE = (SLOT_X[0] + CARRIAGE_HALF_L, SLOT_X[1] - CARRIAGE_HALF_L)
@@ -140,13 +153,13 @@ GROUND_TARGET_Z = 15.0
 # Named poses: the neutral display pose, the park pose the firmware assumes at power-up,
 # plus the reach requirements.
 POSES: dict[str, Pose] = {
-    "neutral": pose_for(0.0, 0.0, 80.0, TABLE_TOP_Z + 70.0, grip=45.0),
+    "neutral": pose_for(0.0, 0.0, 80.0, TABLE_TOP_Z + 70.0, grip=20.0),
     "park": Pose(0.0, 0.0, 45.0, -130.0, 0.0),  # must match kParkPose in firmware/lib/motion
     "table_near": pose_for(0.0, 0.0, 35.0, TABLE_TOP_Z + 8.0),
     "table_far": pose_for(0.0, 0.0, 110.0, TABLE_TOP_Z + 8.0),
     "table_diagonal": pose_for(0.0, 45.0, 90.0, TABLE_TOP_Z + 8.0),
     "table_rear": pose_for(CARRIAGE_RANGE[0], 90.0, 35.0, TABLE_TOP_Z + 8.0),
     "ground_front": pose_for(
-        CARRIAGE_RANGE[1], -90.0, GROUND_TARGET_X - CARRIAGE_RANGE[1], GROUND_TARGET_Z, grip=45.0
+        CARRIAGE_RANGE[1], -90.0, GROUND_TARGET_X - CARRIAGE_RANGE[1], GROUND_TARGET_Z, grip=20.0
     ),
 }

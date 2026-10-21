@@ -52,7 +52,7 @@ class ArmTargets(BaseModel):
     yaw: float | None = Field(None, description="0 across the table, -90 ahead, +90 rear.")
     shoulder: float | None = Field(None, description="Upper arm elevation above horizontal.")
     elbow: float | None = Field(None, description="Forearm bend from the upper arm, negative down.")
-    grip: float | None = Field(None, description="0 closed; 90 opens the fingers ~36 mm.")
+    grip: float | None = Field(None, description="0 closed; 40 opens the fingers ~17 mm.")
 
 
 class TrackTarget(BaseModel):
@@ -137,8 +137,8 @@ class Robot:
 
         `yaw`: 0 points the arm across the table, -90 straight ahead, +90 to the rear.
         `shoulder`: upper arm elevation above horizontal. `elbow`: forearm bend relative to
-        the upper arm, negative bending down. `grip`: 0 closed, 90 opens the fingers about
-        36 mm. Ranges are in `info().limits`. The first arm command after power-up starts
+        the upper arm, negative bending down. `grip`: 0 closed, 40 opens the fingers about
+        17 mm. Ranges are in `info().limits`. The first arm command after power-up starts
         from the park pose (yaw 0, shoulder 45, elbow -130, grip 0). Not every in-range
         combination is safe: avoid poses that drive the arm into the table or body."""
         args = ArmTargets(yaw=yaw, shoulder=shoulder, elbow=elbow, grip=grip)

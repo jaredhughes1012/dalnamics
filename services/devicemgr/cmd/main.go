@@ -54,7 +54,10 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return fmt.Errorf("ping database: %w", err)
 	}
 
-	devicesSvc := devices.NewService(store.New(pool), devices.Config{MQTTPassword: cfg.MQTTPassword})
+	devicesSvc := devices.NewService(store.New(pool), devices.Config{
+		MQTTPassword: cfg.MQTTPassword,
+		OfflineAfter: cfg.OfflineAfter,
+	})
 	handler, err := server.NewHandler(cfg.Token, devicesSvc, logger)
 	if err != nil {
 		return err
@@ -76,10 +79,20 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	mqttCtx, stopMQTT := context.WithCancel(context.Background())
 	defer stopMQTT()
 	broker, err := mqtt.Connect(mqttCtx, mqtt.Config{URL: cfg.MQTTURL, Password: cfg.MQTTPassword},
-		mqtt.NewHandshake(devicesSvc, logger), logger)
+		mqtt.NewHandshake(devicesSvc, logger), mqtt.NewPresence(devicesSvc, logger), logger)
 	if err != nil {
 		return err
 	}
+
+	// The first sweep waits a full offline threshold, so devices whose traffic
+	// was missed while devicemgr was down can report before being marked offline.
+	sweepCtx, stopSweep := context.WithCancel(context.Background())
+	defer stopSweep()
+	sweeperDone := make(chan struct{})
+	go func() {
+		defer close(sweeperDone)
+		devicesSvc.RunSweeper(sweepCtx, cfg.SweepInterval, cfg.OfflineAfter, logger)
+	}()
 
 	select {
 	case err := <-errc:
@@ -94,6 +107,8 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("mqtt disconnect", "err", err)
 	}
 	stopMQTT()
+	stopSweep()
+	<-sweeperDone
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return err
 	}

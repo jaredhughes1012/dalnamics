@@ -306,6 +306,13 @@ export interface components {
              * @description When the device was registered
              */
             created_at: string;
+            /** @description Whether the device has sent MQTT traffic recently */
+            online: boolean;
+            /**
+             * Format: date-time
+             * @description When the device last sent MQTT traffic; null if it never has
+             */
+            last_seen_at: string | null;
         };
         DeviceRegistrationCode: {
             /**

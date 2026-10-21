@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -42,13 +43,32 @@ func TestListDevices(t *testing.T) {
 	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
 	token := ts.login(t, user)
 	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	device := storedevices.ListDevicesByUserRow{ID: uuid.New(), Type: "harwood0", Name: "bench-rover", CreatedAt: created}
+	seen := time.Date(2026, 1, 3, 4, 5, 6, 0, time.UTC)
+	device := storedevices.ListDevicesByUserRow{ID: uuid.New(), Type: "harwood0", Name: "bench-rover", CreatedAt: created, Online: true, LastSeenAt: &seen}
 	ts.q.EXPECT().ListDevicesByUser(gomock.Any(), user.ID).Return([]storedevices.ListDevicesByUserRow{device}, nil)
 
 	res := ts.do(t, http.MethodGet, "/devices", "", token)
 
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, []apigen.Device{{Id: device.ID, Type: "harwood0", Name: "bench-rover", CreatedAt: created}}, decode[[]apigen.Device](t, res))
+	assert.Equal(t, []apigen.Device{{Id: device.ID, Type: "harwood0", Name: "bench-rover", CreatedAt: created, Online: true, LastSeenAt: &seen}}, decode[[]apigen.Device](t, res))
+}
+
+func TestListDevicesNeverConnected(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
+	token := ts.login(t, user)
+	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
+	device := storedevices.ListDevicesByUserRow{ID: id, Type: "harwood0", Name: "bench-rover", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
+	ts.q.EXPECT().ListDevicesByUser(gomock.Any(), user.ID).Return([]storedevices.ListDevicesByUserRow{device}, nil)
+
+	res := ts.do(t, http.MethodGet, "/devices", "", token)
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"id":"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11","type":"harwood0","name":"bench-rover",`+
+		`"created_at":"2026-01-02T03:04:05Z","online":false,"last_seen_at":null}]`, string(body),
+		"a device with no connectivity row is offline, with last_seen_at present as null")
 }
 
 func TestListDevicesEmpty(t *testing.T) {

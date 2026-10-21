@@ -78,9 +78,13 @@ func newDevicesListCmd(e *env) *cobra.Command {
 				return err
 			}
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "ID\tNAME\tTYPE\tREGISTERED")
+			fmt.Fprintln(tw, "ID\tNAME\tTYPE\tSTATUS\tREGISTERED")
 			for _, d := range devices {
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", d.Id, d.Name, d.Type, d.CreatedAt.Local().Format(time.DateTime))
+				status := "offline"
+				if d.Online {
+					status = "online"
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", d.Id, d.Name, d.Type, status, d.CreatedAt.Local().Format(time.DateTime))
 			}
 			return tw.Flush()
 		},

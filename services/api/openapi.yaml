@@ -391,7 +391,7 @@ components:
 
     Device:
       type: object
-      required: [id, type, name, created_at]
+      required: [id, type, name, created_at, online, last_seen_at]
       properties:
         id:
           type: string
@@ -406,6 +406,14 @@ components:
           type: string
           format: date-time
           description: When the device was registered
+        online:
+          type: boolean
+          description: Whether the device has sent MQTT traffic recently
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the device last sent MQTT traffic; null if it never has
 
     DeviceRegistrationCode:
       type: object

@@ -43,6 +43,13 @@ type DevicemgrDevice struct {
 	UpdatedAt          time.Time
 }
 
+// Whether each device is connected. Any MQTT message from a device marks it online and records last_seen_at (throttled); a periodic sweep marks devices offline once they have been silent past DEVICEMGR_OFFLINE_AFTER.
+type DevicemgrDeviceConnectivity struct {
+	DeviceID   uuid.UUID
+	Online     bool
+	LastSeenAt time.Time
+}
+
 // SHA-256 of every refresh token a session has rotated away from, written by a trigger on sessions. Presenting one of these again means the token was copied, so the api revokes its session.
 type RotatedRefreshToken struct {
 	TokenHash []byte

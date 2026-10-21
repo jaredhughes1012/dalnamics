@@ -7,7 +7,7 @@ Feature domains, and the flows within them, are documented separately:
 | Doc | Domain |
 |---|---|
 | [auth.md](auth.md) | Accounts, sessions and tokens, studio and cli sign-in |
-| [devices.md](devices.md) | Device registration, device credentials, and broker authorization |
+| [devices.md](devices.md) | Device registration, device credentials, broker authorization, and connectivity |
 
 ## System overview
 
@@ -65,7 +65,8 @@ flowchart LR
 [`services/devicemgr/`](../services/devicemgr/) is the internal device service. Devices are generic hardware nodes (harwood0 is one kind). devicemgr takes in incoming device data, tracks where devices are, and carries downstream requests from the api to devices.
 
 - **No public API:** studio and the cli never call devicemgr. The api calls it, and the api surfaces the data devicemgr writes.
-- **Device transport:** connects to Mosquitto as the MQTT superuser and answers device registration handshakes ([`internal/mqtt`](../services/devicemgr/internal/mqtt/)). Mosquitto in turn calls devicemgr's `/mqtt/*` operations to authenticate clients and authorize each topic ([devices.md](devices.md)).
+- **Device transport:** connects to Mosquitto as the MQTT superuser, answers device registration handshakes, and records device traffic ([`internal/mqtt`](../services/devicemgr/internal/mqtt/)). Mosquitto in turn calls devicemgr's `/mqtt/*` operations to authenticate clients and authorize each topic ([devices.md](devices.md)).
+- **Connectivity:** marks devices online from their MQTT traffic and offline with a periodic sweep ([devices.md](devices.md#connectivity)).
 - **Contract:** a private OpenAPI spec ([`openapi.yaml`](../services/devicemgr/openapi.yaml)), changed spec-first the same way as the api's and generated into [`internal/apigen`](../services/devicemgr/internal/apigen/).
 - **Authorization:** every route requires the shared service token ([Authentication](#authentication)) unless the spec declares empty security, which only `/healthz` and the broker's `/mqtt/*` checks do. [`internal/server`](../services/devicemgr/internal/server/server.go) reads the open operations from the spec.
 - **Data:** owns the `devicemgr` Postgres schema. Its migrations ([`internal/store/migrations`](../services/devicemgr/internal/store/migrations/)) are embedded and applied at startup ([Data](#data)).
@@ -138,6 +139,8 @@ Services are configured from the environment through a typed `config` package (e
 | `DEVICEMGR_TOKEN` | devicemgr | Shared service token callers present as a bearer token; at least 32 bytes |
 | `DEVICEMGR_MQTT_URL` | devicemgr | MQTT broker URL (`mqtt://host:port`) |
 | `DEVICEMGR_MQTT_PASSWORD` | devicemgr | devicemgr's broker password as the `devicemgr` superuser; at least 32 bytes |
+| `DEVICEMGR_OFFLINE_AFTER` | devicemgr | How long a device may stay silent before it is marked [offline](devices.md#connectivity) (Go duration, default `90s`) |
+| `DEVICEMGR_SWEEP_INTERVAL` | devicemgr | How often the offline sweep runs (Go duration, default `15s`, at most `DEVICEMGR_OFFLINE_AFTER`) |
 | `DALNAMICS_API_URL` / `--api-url` | cli | api base URL |
 | `DALNAMICS_STUDIO_URL` / `--studio-url` | cli | studio base URL, for browser sign-in |
 | `DALNAMICS_CREDENTIAL_STORE` | cli | Forces the credential backend (`keyring` or `file`) |

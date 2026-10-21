@@ -28,6 +28,9 @@ class Settings:
     # robot has stored credentials.
     registration_code: str = ""
     device_name: str = field(default_factory=socket.gethostname)
+    # How long the platform connection may go without publishing before it sends a heartbeat,
+    # so the platform keeps showing the robot as online. Unrelated to heartbeat_s.
+    platform_heartbeat_s: float = 30.0
     # Where the robot keeps its platform credentials (device.json).
     state_dir: Path = field(default_factory=lambda: Path.home() / ".local/state/harwood0")
 
@@ -54,6 +57,9 @@ class Settings:
                 "HARWOOD0_REGISTRATION_CODE", defaults.registration_code
             ),
             device_name=os.environ.get("HARWOOD0_DEVICE_NAME") or defaults.device_name,
+            platform_heartbeat_s=float(
+                os.environ.get("HARWOOD0_PLATFORM_HEARTBEAT_S", defaults.platform_heartbeat_s)
+            ),
             state_dir=Path(os.environ["HARWOOD0_STATE_DIR"]).expanduser()
             if os.environ.get("HARWOOD0_STATE_DIR")
             else defaults.state_dir,

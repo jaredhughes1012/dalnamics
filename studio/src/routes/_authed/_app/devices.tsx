@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { RegisterDeviceDialog } from '@/components/register-device-dialog'
 import { useDevicesStore } from '@/stores/devices'
@@ -13,12 +14,17 @@ export const Route = createFileRoute('/_authed/_app/devices')({
 
 const registeredAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
+/** How often the page refreshes the list, so each device's status stays current. */
+const REFRESH_MS = 15_000
+
 function Devices() {
   const { status, devices, error, load } = useDevicesStore()
   const [registering, setRegistering] = useState(false)
 
   useEffect(() => {
     void load()
+    const refresh = setInterval(() => void load(), REFRESH_MS)
+    return () => clearInterval(refresh)
   }, [load])
 
   return (
@@ -53,7 +59,12 @@ function Devices() {
               <tbody>
                 {devices.map((d) => (
                   <tr key={d.id} className="border-b last:border-0">
-                    <td className="px-6 py-3 font-medium">{d.name}</td>
+                    <td className="px-6 py-3 font-medium">
+                      <span className="flex items-center gap-2">
+                        <DeviceStatus device={d} />
+                        {d.name}
+                      </span>
+                    </td>
                     <td className="px-6 py-3">{d.type}</td>
                     <td className="px-6 py-3 text-muted-foreground">{registeredAt.format(new Date(d.created_at))}</td>
                   </tr>

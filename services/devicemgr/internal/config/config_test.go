@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,8 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, []byte(token), cfg.Token)
 	assert.Equal(t, "mqtt://mosquitto:1883", cfg.MQTTURL.String())
 	assert.Equal(t, []byte(mqttPassword), cfg.MQTTPassword)
+	assert.Equal(t, 90*time.Second, cfg.OfflineAfter)
+	assert.Equal(t, 15*time.Second, cfg.SweepInterval)
 }
 
 func TestLoadAddr(t *testing.T) {
@@ -88,4 +91,27 @@ func TestLoadRequiresMQTTPassword(t *testing.T) {
 			assert.ErrorContains(t, err, "DEVICEMGR_MQTT_PASSWORD")
 		})
 	}
+}
+
+func TestLoadConnectivityDurations(t *testing.T) {
+	cfg, err := Load(env(valid(map[string]string{"DEVICEMGR_OFFLINE_AFTER": "2m", "DEVICEMGR_SWEEP_INTERVAL": "2m"})))
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, cfg.OfflineAfter)
+	assert.Equal(t, 2*time.Minute, cfg.SweepInterval, "the sweep may run as rarely as the threshold")
+}
+
+func TestLoadRejectsBadDurations(t *testing.T) {
+	for _, key := range []string{"DEVICEMGR_OFFLINE_AFTER", "DEVICEMGR_SWEEP_INTERVAL"} {
+		for name, v := range map[string]string{"garbage": "soon", "no unit": "90", "zero": "0s", "negative": "-5s"} {
+			t.Run(key+"/"+name, func(t *testing.T) {
+				_, err := Load(env(valid(map[string]string{key: v})))
+				assert.ErrorContains(t, err, key)
+			})
+		}
+	}
+}
+
+func TestLoadRejectsSweepLongerThanOfflineAfter(t *testing.T) {
+	_, err := Load(env(valid(map[string]string{"DEVICEMGR_OFFLINE_AFTER": "30s", "DEVICEMGR_SWEEP_INTERVAL": "31s"})))
+	assert.ErrorContains(t, err, "DEVICEMGR_SWEEP_INTERVAL must not exceed DEVICEMGR_OFFLINE_AFTER")
 }

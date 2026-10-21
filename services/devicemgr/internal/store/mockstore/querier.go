@@ -86,3 +86,33 @@ func (mr *MockQuerierMockRecorder) GetDeviceSecretHash(ctx, id any) *gomock.Call
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeviceSecretHash", reflect.TypeOf((*MockQuerier)(nil).GetDeviceSecretHash), ctx, id)
 }
+
+// MarkDeviceSeen mocks base method.
+func (m *MockQuerier) MarkDeviceSeen(ctx context.Context, arg devices.MarkDeviceSeenParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkDeviceSeen", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkDeviceSeen indicates an expected call of MarkDeviceSeen.
+func (mr *MockQuerierMockRecorder) MarkDeviceSeen(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkDeviceSeen", reflect.TypeOf((*MockQuerier)(nil).MarkDeviceSeen), ctx, arg)
+}
+
+// MarkStaleDevicesOffline mocks base method.
+func (m *MockQuerier) MarkStaleDevicesOffline(ctx context.Context, offlineAfterSeconds float64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkStaleDevicesOffline", ctx, offlineAfterSeconds)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkStaleDevicesOffline indicates an expected call of MarkStaleDevicesOffline.
+func (mr *MockQuerierMockRecorder) MarkStaleDevicesOffline(ctx, offlineAfterSeconds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStaleDevicesOffline", reflect.TypeOf((*MockQuerier)(nil).MarkStaleDevicesOffline), ctx, offlineAfterSeconds)
+}

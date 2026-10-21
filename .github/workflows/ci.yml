@@ -126,11 +126,12 @@ jobs:
         working-directory: test/studio
         run: pnpm exec playwright install --with-deps
 
-      # Playwright's webServer starts compose (postgres + api) and the studio
+      # Playwright's webServer starts compose (postgres, api, devicemgr, and
+      # mosquitto) and the studio
       # dev server itself; building first keeps image build time out of its
       # startup timeout and in its own log section.
       - name: Build compose images
-        run: docker compose build api
+        run: docker compose build api devicemgr
 
       - name: Playwright
         working-directory: test/studio

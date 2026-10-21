@@ -7,6 +7,7 @@ Feature domains, and the flows within them, are documented separately:
 | Doc | Domain |
 |---|---|
 | [auth.md](auth.md) | Accounts, sessions and tokens, studio and cli sign-in |
+| [devices.md](devices.md) | Device registration, device credentials, and broker authorization |
 
 ## System overview
 
@@ -23,12 +24,14 @@ flowchart LR
     cli -. "opens browser for sign-in" .-> studio
     api["api<br/>Go HTTP service"] --> pg[(Postgres)]
     api -- "private HTTP<br/>service token" --> devicemgr["devicemgr<br/>Go internal service"]
-    devices([Devices]) --> devicemgr
+    devices([Devices]) -- "MQTT" --> mosquitto["Mosquitto<br/>MQTT broker"]
+    mosquitto -- "MQTT" --> devicemgr
+    mosquitto -. "auth checks<br/>(HTTP)" .-> devicemgr
     devicemgr --> pg
 ```
 
 - Clients never talk to each other, to devicemgr, or to the database. Every read and write goes through the api.
-- Devices talk only to devicemgr. The api surfaces device data by reading devicemgr's schema and sends requests to devices through devicemgr's private API.
+- Devices talk only to devicemgr, over MQTT through Mosquitto. The broker delegates every authentication and topic check to devicemgr ([devices.md](devices.md#broker-authorization)). The api surfaces device data by reading devicemgr's schema and sends requests to devices through devicemgr's private API.
 - The only client-to-client hand-off is the cli opening studio in a browser so a person can approve a cli sign-in ([auth.md](auth.md#cli-login)).
 
 ## Tech stack
@@ -41,6 +44,7 @@ flowchart LR
 | Database | Postgres 17 | The single store for all platform state, with one schema per service. Extensions are enabled per migration as needed. |
 | Web app | React 19, Vite, TanStack Router, zustand, shadcn/Tailwind | File-based typed routes, small client-side stores, and owned (copied-in) UI components. |
 | CLI | Cobra | Conventional subcommand structure that agents can discover with `--help`. |
+| Device transport | MQTT 5 through Mosquitto with the mosquitto-go-auth plugin | Devices hold long-lived connections, publish and subscribe on topics, and often sit behind NAT, which MQTT handles and request/response HTTP doesn't. The plugin's HTTP backend sends authentication and ACL checks to devicemgr, so Postgres is the only store of device credentials. |
 | Local stack | Docker Compose ([`docker-compose.yaml`](../docker-compose.yaml)) | Every app service builds and runs in compose. Go services support delve attach from VS Code. |
 | Testing | Go: testify + gomock. Studio: Vitest + Testing Library. E2E: Playwright | See [Testing](#testing). |
 
@@ -60,9 +64,10 @@ flowchart LR
 
 [`services/devicemgr/`](../services/devicemgr/) is the internal device service. Devices are generic hardware nodes (harwood0 is one kind). devicemgr takes in incoming device data, tracks where devices are, and carries downstream requests from the api to devices.
 
-- **No public API:** studio and the cli never call devicemgr. Only the api does, and the api surfaces the data devicemgr writes.
+- **No public API:** studio and the cli never call devicemgr. The api calls it, and the api surfaces the data devicemgr writes.
+- **Device transport:** connects to Mosquitto as the MQTT superuser and answers device registration handshakes ([`internal/mqtt`](../services/devicemgr/internal/mqtt/)). Mosquitto in turn calls devicemgr's `/mqtt/*` operations to authenticate clients and authorize each topic ([devices.md](devices.md)).
 - **Contract:** a private OpenAPI spec ([`openapi.yaml`](../services/devicemgr/openapi.yaml)), changed spec-first the same way as the api's and generated into [`internal/apigen`](../services/devicemgr/internal/apigen/).
-- **Authorization:** every route except `/healthz` requires the shared service token ([Authentication](#authentication)), checked by [`internal/server`](../services/devicemgr/internal/server/server.go).
+- **Authorization:** every route requires the shared service token ([Authentication](#authentication)) unless the spec declares empty security, which only `/healthz` and the broker's `/mqtt/*` checks do. [`internal/server`](../services/devicemgr/internal/server/server.go) reads the open operations from the spec.
 - **Data:** owns the `devicemgr` Postgres schema. Its migrations ([`internal/store/migrations`](../services/devicemgr/internal/store/migrations/)) are embedded and applied at startup ([Data](#data)).
 
 ### cli
@@ -90,14 +95,16 @@ flowchart LR
 
 Every client authenticates to the api with a short-lived bearer access token and renews it with a single-use refresh token. Each sign-in creates a server-side session tagged with its client (`studio` or `cli`), so sessions can be revoked individually and revocation takes effect immediately. The api is the only component that reads or writes auth data. Flows and the reasoning behind them are in [auth.md](auth.md).
 
+Devices authenticate to the broker with their own ID and secret, issued when they redeem a one-time registration code. devicemgr checks them on the broker's behalf ([devices.md](devices.md)).
+
 Service-to-service calls use a shared secret. The api calls devicemgr with `Authorization: Bearer <DEVICEMGR_TOKEN>`, which devicemgr compares in constant time; a missing or wrong token gets `unauthenticated`.
 
 ### Data
 
-- Each service owns one Postgres schema: `public` for the api, `devicemgr` for devicemgr. A service writes only its own schema. The one cross-schema access allowed is the api reading devicemgr's tables to surface device data. A schema a service creates carries a `COMMENT ON SCHEMA`.
+- Each service owns one Postgres schema: `public` for the api, `devicemgr` for devicemgr. A service writes only its own schema, and no foreign key crosses schemas, so neither service's migrations depend on the other's. Two cross-schema reads are allowed: the api reads devicemgr's tables to surface device data, and devicemgr reads `public.device_registration_codes` to redeem a code. A schema a service creates carries a `COMMENT ON SCHEMA`.
 - Each service migrates its schema at startup with its own tracking table (`schema_migrations` for the api, `public.devicemgr_schema_migrations` for devicemgr). golang-migrate creates the tracking table before any migration runs, so it cannot live in a schema that a migration creates.
-- SQL is written by hand in each service's `store/queries` (e.g. the [api's](../services/api/internal/store/queries/)). sqlc generates one package per domain under `store/` (e.g. `store/auth`), and the root `store` package composes them into one `Querier`, the only thing application code depends on and the only thing mocked.
-- Migrations live in each service's `store/migrations` (e.g. the [api's](../services/api/internal/store/migrations/)) as `{version}_{name}.{up,down}.sql`. Cross-cutting behavior (e.g. `updated_at` via `set_updated_at()`) is done with triggers. Every table except `users` and pure join tables carries a `COMMENT ON TABLE`.
+- SQL is written by hand in each service's `store/queries` (e.g. the [api's](../services/api/internal/store/queries/)). sqlc generates one package per domain under `store/` (e.g. `store/auth`), and the root `store` package composes them into one `Querier`, the only thing application code depends on and the only thing mocked. A domain that reads the other service's schema lists that service's migrations in its sqlc `schema`. The api's `Querier.InTx` runs a function against one transaction.
+- Migrations live in each service's `store/migrations` (e.g. the [api's](../services/api/internal/store/migrations/)) as `{version}_{name}.{up,down}.sql`. Cross-cutting behavior (e.g. `updated_at` via `set_updated_at()`) is done with triggers. Each schema has its own `set_updated_at()`, because the services migrate independently and in no fixed order. Every table except `users` and pure join tables carries a `COMMENT ON TABLE`.
 
 ### Error codes
 
@@ -106,7 +113,7 @@ Error responses from every service share one shape, `{code, message}`. Clients s
 | Code | Status | Meaning |
 |---|---|---|
 | `invalid_request` | 400 | The request failed decoding or validation |
-| `invalid_code` | 400 | A one-time authorization code is invalid, expired, or already used |
+| `invalid_code` | 400 | A one-time authorization or registration code is invalid, expired, or already used (also a device handshake reply) |
 | `invalid_credentials` | 401 | Wrong email or password |
 | `invalid_token` | 401 | A refresh token is unknown, expired, or reused |
 | `unauthenticated` | 401 | Missing or invalid access token or service token, or the session has ended |
@@ -126,8 +133,11 @@ Services are configured from the environment through a typed `config` package (e
 | `JWT_SECRET` | api | Signs access tokens; at least 32 bytes |
 | `DEBUG` | api | Enables development-only behavior, such as dev users |
 | `DEV_EMAILS` | api | Dev user addresses, comma separated (read only when `DEBUG=true`) |
+| `DEV_REGISTRATION_CODE` | api | [Device registration code](devices.md#dev-registration-code) seeded for the first dev user; never expires (read only when `DEBUG=true`) |
 | `DEVICEMGR_ADDR` | devicemgr | Listen address |
 | `DEVICEMGR_TOKEN` | devicemgr | Shared service token callers present as a bearer token; at least 32 bytes |
+| `DEVICEMGR_MQTT_URL` | devicemgr | MQTT broker URL (`mqtt://host:port`) |
+| `DEVICEMGR_MQTT_PASSWORD` | devicemgr | devicemgr's broker password as the `devicemgr` superuser; at least 32 bytes |
 | `DALNAMICS_API_URL` / `--api-url` | cli | api base URL |
 | `DALNAMICS_STUDIO_URL` / `--studio-url` | cli | studio base URL, for browser sign-in |
 | `DALNAMICS_CREDENTIAL_STORE` | cli | Forces the credential backend (`keyring` or `file`) |
@@ -143,7 +153,7 @@ Services are configured from the environment through a typed `config` package (e
 
 - **Go unit tests** exercise handlers and domain services against the generated `mockstore`.
 - **Studio unit tests** render real routes with [`renderRoute`](../studio/src/test/render.tsx) and stub the api with [`mockApi`](../studio/src/test/api.ts).
-- **E2E tests** in [`test/studio`](../test/studio/) run against the compose Postgres and api and the studio dev server. The api seeds dev users so tests sign in without passwords ([auth.md](auth.md#dev-users)).
+- **E2E tests** in [`test/studio`](../test/studio/) run against the compose Postgres, api, devicemgr, and Mosquitto, and the studio dev server. Device tests play the device's side over MQTT. The api seeds dev users so tests sign in without passwords ([auth.md](auth.md#dev-users)).
 
 ### CI
 
@@ -168,7 +178,8 @@ Both build jobs fail if code generation changes any committed file, so generated
 |---|---|---|
 | Postgres | compose | 5433 (host) |
 | api | compose, or on the host with `make run-api` | 8080; delve on 2345 in compose |
-| devicemgr | compose, or on the host with `make run-devicemgr` | 8081; delve on 2346 in compose |
+| devicemgr | compose, or on the host with `make run-devicemgr` (the compose broker can only reach the compose devicemgr for auth checks) | 8081; delve on 2346 in compose |
+| Mosquitto | compose ([`mosquitto.conf`](../services/devicemgr/mosquitto/mosquitto.conf)) | 1883 (MQTT) |
 | studio | Vite dev server (`make run-studio`) | 5173 |
 
 `make up` builds and starts the full stack; `make generate`, `make test`, `make test-e2e`, and `make lint` cover the day-to-day loop (see the [Makefile](../Makefile)).

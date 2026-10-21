@@ -1,15 +1,18 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from typing import Annotated
 
+import aiomqtt
 import httpx2 as httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from harwood0_api.camera import Camera, CameraStatus, mjpeg_part
 from harwood0_api.config import Settings
+from harwood0_api.platform import ClientFactory, PlatformError, start_platform, stop_platform
 from harwood0_api.robot import (
     ArmTargets,
     Drive,
@@ -21,15 +24,24 @@ from harwood0_api.robot import (
 )
 from harwood0_api.transport import RobotError, RobotUnavailable, make_transport
 
+log = logging.getLogger(__name__)
+
 # How long /cameras/{name}/frame waits for a frame before giving up.
 FRAME_TIMEOUT_S = 5.0
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, mqtt_client_factory: ClientFactory = aiomqtt.Client
+) -> FastAPI:
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        try:
+            platform = await start_platform(settings, mqtt_client_factory)
+        except PlatformError as exc:
+            log.error("cannot join the dalnamics platform: %s", exc)
+            raise
         transport = make_transport(settings)
         app.state.robot = Robot(transport)
         async with httpx.AsyncClient() as client:
@@ -39,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
             await asyncio.gather(*(camera.close() for camera in app.state.cameras.values()))
         await transport.close()
+        await stop_platform(platform)
 
     app = FastAPI(title="harwood0", lifespan=lifespan)
 

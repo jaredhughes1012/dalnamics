@@ -88,6 +88,28 @@ type DevUsers struct {
 	Emails []string `json:"emails"`
 }
 
+// Device defines model for Device.
+type Device struct {
+	// CreatedAt When the device was registered
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// Type Kind of device, e.g. harwood0
+	//
+	// Example: harwood0
+	Type string `json:"type"`
+}
+
+// DeviceRegistrationCode defines model for DeviceRegistrationCode.
+type DeviceRegistrationCode struct {
+	// Code Six characters from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+	//
+	// Example: AB3D7K
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine-readable error code
@@ -189,6 +211,12 @@ type ServerInterface interface {
 	// Signup Create an account with email and password
 	// (POST /auth/signup)
 	Signup(w http.ResponseWriter, r *http.Request)
+	// ListDevices List the authenticated user's devices, newest first
+	// (GET /devices)
+	ListDevices(w http.ResponseWriter, r *http.Request)
+	// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
+	// (POST /devices/registration-codes)
+	CreateDeviceRegistrationCode(w http.ResponseWriter, r *http.Request)
 	// GetMe Get the authenticated user
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -306,6 +334,34 @@ func (siw *ServerInterfaceWrapper) Signup(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Signup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDevices operation middleware
+func (siw *ServerInterfaceWrapper) ListDevices(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDevices(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDeviceRegistrationCode operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeviceRegistrationCode(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDeviceRegistrationCode(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -458,6 +514,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/cli/authorize", wrapper.AuthorizeCli)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/cli/token", wrapper.ExchangeCliCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/devices", wrapper.ListDevices)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/devices/registration-codes", wrapper.CreateDeviceRegistrationCode)
 
 	return m
 }
@@ -802,6 +860,76 @@ func (response Signup409JSONResponse) VisitSignupResponse(w http.ResponseWriter)
 	return err
 }
 
+type ListDevicesRequestObject struct {
+}
+
+type ListDevicesResponseObject interface {
+	VisitListDevicesResponse(w http.ResponseWriter) error
+}
+
+type ListDevices200JSONResponse []Device
+
+func (response ListDevices200JSONResponse) VisitListDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDevices401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListDevices401JSONResponse) VisitListDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeviceRegistrationCodeRequestObject struct {
+}
+
+type CreateDeviceRegistrationCodeResponseObject interface {
+	VisitCreateDeviceRegistrationCodeResponse(w http.ResponseWriter) error
+}
+
+type CreateDeviceRegistrationCode201JSONResponse DeviceRegistrationCode
+
+func (response CreateDeviceRegistrationCode201JSONResponse) VisitCreateDeviceRegistrationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDeviceRegistrationCode401JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateDeviceRegistrationCode401JSONResponse) VisitCreateDeviceRegistrationCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -863,6 +991,12 @@ type StrictServerInterface interface {
 	// Signup Create an account with email and password
 	// (POST /auth/signup)
 	Signup(ctx context.Context, request SignupRequestObject) (SignupResponseObject, error)
+	// ListDevices List the authenticated user's devices, newest first
+	// (GET /devices)
+	ListDevices(ctx context.Context, request ListDevicesRequestObject) (ListDevicesResponseObject, error)
+	// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
+	// (POST /devices/registration-codes)
+	CreateDeviceRegistrationCode(ctx context.Context, request CreateDeviceRegistrationCodeRequestObject) (CreateDeviceRegistrationCodeResponseObject, error)
 	// GetMe Get the authenticated user
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -1141,6 +1275,54 @@ func (sh *strictHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListDevices operation middleware
+func (sh *strictHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
+	var request ListDevicesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDevices(ctx, request.(ListDevicesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDevices")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDevicesResponseObject); ok {
+		if err := validResponse.VisitListDevicesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDeviceRegistrationCode operation middleware
+func (sh *strictHandler) CreateDeviceRegistrationCode(w http.ResponseWriter, r *http.Request) {
+	var request CreateDeviceRegistrationCodeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDeviceRegistrationCode(ctx, request.(CreateDeviceRegistrationCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDeviceRegistrationCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDeviceRegistrationCodeResponseObject); ok {
+		if err := validResponse.VisitCreateDeviceRegistrationCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMe operation middleware
 func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	var request GetMeRequestObject
@@ -1170,31 +1352,36 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

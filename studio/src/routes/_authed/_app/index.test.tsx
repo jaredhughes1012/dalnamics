@@ -22,6 +22,8 @@ describe('dashboard', () => {
     expect(await screen.findByText('Success: api is ok')).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(nav).toContainElement(screen.getByRole('link', { name: 'Dashboard' }))
+    expect(nav).toContainElement(screen.getByRole('link', { name: 'Devices' }))
+    expect(screen.getByRole('link', { name: 'Devices' })).toHaveAttribute('href', '/devices')
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'dalnamics' })).toHaveAttribute('href', '/')
   })

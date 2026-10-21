@@ -29,9 +29,9 @@ Go modules are wired with `go.work`. Each service keeps app-specific code in `se
 ```sh
 make generate     # after editing openapi.yaml, SQL queries, or mocked interfaces (generate-go + generate-studio)
 make test         # Go + studio unit tests
-make test-e2e     # Playwright; starts/reuses compose postgres+api and the studio dev server
+make test-e2e     # Playwright; starts/reuses compose postgres, api, devicemgr, mosquitto, and the studio dev server
 make lint         # go vet + oxlint
-make up / down    # full stack in docker compose (api on :8080, devicemgr on :8081, postgres on :5433)
+make up / down    # full stack in docker compose (api on :8080, devicemgr on :8081, mosquitto on :1883, postgres on :5433)
 make run-api      # api on the host against compose postgres (env from services/api/.env.example)
 make run-devicemgr # devicemgr on the host against compose postgres (env from services/devicemgr/.env.example)
 make build        # bin/api, bin/cli, bin/devicemgr, studio/dist
@@ -61,6 +61,8 @@ devicemgr's private spec (`services/devicemgr/openapi.yaml`) follows the same st
 - Configuration comes from the environment through a typed `config` package; no globals.
 - Each service owns one Postgres schema (`public` for the api, `devicemgr` for devicemgr) and writes only to it; the api may read `devicemgr` tables. A schema a service creates gets a `COMMENT ON SCHEMA`.
 - Data access: write SQL in `services/<svc>/internal/store/queries/*.sql`; sqlc generates a domain package under `store/` (e.g. `store/auth`). Compose each domain's `Querier`/`Queries` into the root `store.Querier`/`store.Store`. Application code depends on `store.Querier` only.
+  - A domain that reads the other service's schema lists that service's migrations in its sqlc `schema` (e.g. the api's `devices` entry lists devicemgr's).
+  - Transactions go through `store.Querier.InTx(ctx, func(store.Querier) error)`; in tests, stub it to run the callback against the same mock.
 - Migrations live in `services/<svc>/internal/store/migrations` as `{version}_{name}.{up,down}.sql`, are embedded, and are applied when the service starts. devicemgr tracks its migrations in `public.devicemgr_schema_migrations`, separate from the api's `schema_migrations`.
   - Enable extensions inline in the first migration that needs them.
   - Prefer triggers for cross-cutting concerns (`set_updated_at()` exists).
@@ -85,6 +87,9 @@ The api seeds the users in `DEV_EMAILS` when `DEBUG=true`, and they sign in with
 - Tests that need a signed-in user: `test.use({ storageState: AUTH_FILE })`.
 - Tests that end a session (logout): sign in their own session with `devLogin(page, email)` from `fixtures.ts`.
 - New users: create them with `uniqueEmail()`.
+- Devices: play the device's side over MQTT with `handshake()` and `connectBroker()` from `tests/device.ts`.
+
+The api also seeds `DEV_REGISTRATION_CODE` (compose: `000000`) for `dev@dalnamics.local`, so a local harwood0 registers without studio. Each api start lets it be redeemed once, so e2e tests issue their own codes rather than use it.
 
 ## Issue workflow
 

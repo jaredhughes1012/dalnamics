@@ -47,6 +47,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(
 		newHealthCmd(e),
 		newAuthCmd(e),
+		newDevicesCmd(e),
 	)
 
 	return root

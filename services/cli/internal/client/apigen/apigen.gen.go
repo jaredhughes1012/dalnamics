@@ -83,6 +83,28 @@ type DevUsers struct {
 	Emails []string `json:"emails"`
 }
 
+// Device defines model for Device.
+type Device struct {
+	// CreatedAt When the device was registered
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// Type Kind of device, e.g. harwood0
+	//
+	// Example: harwood0
+	Type string `json:"type"`
+}
+
+// DeviceRegistrationCode defines model for DeviceRegistrationCode.
+type DeviceRegistrationCode struct {
+	// Code Six characters from 23456789ABCDEFGHJKLMNPQRSTUVWXYZ
+	//
+	// Example: AB3D7K
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine-readable error code
@@ -340,6 +362,18 @@ type ClientInterface interface {
 	// Corresponds with POST /auth/signup (the `Signup` operationId).
 	Signup(ctx context.Context, body SignupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDevices List the authenticated user's devices, newest first
+	//
+	// Corresponds with GET /devices (the `ListDevices` operationId).
+	ListDevices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
+	//
+	// The user gives the code to a device, which redeems it with devicemgr over MQTT. Codes are single use and expire after 10 minutes.
+	//
+	// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
+	CreateDeviceRegistrationCode(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetHealth Health check
 	//
 	// Corresponds with GET /healthz (the `GetHealth` operationId).
@@ -583,6 +617,38 @@ func (c *Client) SignupWithBody(ctx context.Context, contentType string, body io
 // Corresponds with POST /auth/signup (the `Signup` operationId).
 func (c *Client) Signup(ctx context.Context, body SignupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSignupRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListDevices List the authenticated user's devices, newest first
+//
+// Corresponds with GET /devices (the `ListDevices` operationId).
+func (c *Client) ListDevices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDevicesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
+//
+// The user gives the code to a device, which redeems it with devicemgr over MQTT. Codes are single use and expire after 10 minutes.
+//
+// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
+func (c *Client) CreateDeviceRegistrationCode(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceRegistrationCodeRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -917,6 +983,60 @@ func NewSignupRequestWithBody(server string, contentType string, body io.Reader)
 	return req, nil
 }
 
+// NewListDevicesRequest constructs an http.Request for the ListDevices method
+func NewListDevicesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/devices")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateDeviceRegistrationCodeRequest constructs an http.Request for the CreateDeviceRegistrationCode method
+func NewCreateDeviceRegistrationCodeRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/devices/registration-codes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetHealthRequest constructs an http.Request for the GetHealth method
 func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -1120,6 +1240,22 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /auth/signup (the `Signup` operationId).
 	SignupWithResponse(ctx context.Context, body SignupJSONRequestBody, reqEditors ...RequestEditorFn) (*SignupResponse, error)
+
+	// ListDevicesWithResponse List the authenticated user's devices, newest first
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /devices (the `ListDevices` operationId).
+	ListDevicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDevicesResponse, error)
+
+	// CreateDeviceRegistrationCodeWithResponse Issue a one-time code that registers a device to the authenticated user
+	//
+	// The user gives the code to a device, which redeems it with devicemgr over MQTT. Codes are single use and expire after 10 minutes.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
+	CreateDeviceRegistrationCodeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateDeviceRegistrationCodeResponse, error)
 
 	// GetHealthWithResponse Health check
 	//
@@ -1541,6 +1677,102 @@ func (r SignupResponse) ContentType() string {
 	return ""
 }
 
+type ListDevicesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *[]Device
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListDevicesResponse) GetJSON200() *[]Device {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListDevicesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListDevicesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDevicesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDevicesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDevicesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateDeviceRegistrationCodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *DeviceRegistrationCode
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateDeviceRegistrationCodeResponse) GetJSON201() *DeviceRegistrationCode {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateDeviceRegistrationCodeResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateDeviceRegistrationCodeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDeviceRegistrationCodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDeviceRegistrationCodeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateDeviceRegistrationCodeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1818,6 +2050,34 @@ func (c *ClientWithResponses) SignupWithResponse(ctx context.Context, body Signu
 		return nil, err
 	}
 	return ParseSignupResponse(rsp)
+}
+
+// ListDevicesWithResponse List the authenticated user's devices, newest first
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /devices (the `ListDevices` operationId).
+func (c *ClientWithResponses) ListDevicesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDevicesResponse, error) {
+	rsp, err := c.ListDevices(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDevicesResponse(rsp)
+}
+
+// CreateDeviceRegistrationCodeWithResponse Issue a one-time code that registers a device to the authenticated user
+//
+// The user gives the code to a device, which redeems it with devicemgr over MQTT. Codes are single use and expire after 10 minutes.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
+func (c *ClientWithResponses) CreateDeviceRegistrationCodeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateDeviceRegistrationCodeResponse, error) {
+	rsp, err := c.CreateDeviceRegistrationCode(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDeviceRegistrationCodeResponse(rsp)
 }
 
 // GetHealthWithResponse Health check
@@ -2128,6 +2388,72 @@ func ParseSignupResponse(rsp *http.Response) (*SignupResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDevicesResponse parses an HTTP response from a ListDevicesWithResponse call
+func ParseListDevicesResponse(rsp *http.Response) (*ListDevicesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDevicesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Device
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateDeviceRegistrationCodeResponse parses an HTTP response from a CreateDeviceRegistrationCodeWithResponse call
+func ParseCreateDeviceRegistrationCodeResponse(rsp *http.Response) (*CreateDeviceRegistrationCodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDeviceRegistrationCodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest DeviceRegistrationCode
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 

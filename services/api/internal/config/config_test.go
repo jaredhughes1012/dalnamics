@@ -21,6 +21,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, ":8080", cfg.Addr)
 	assert.False(t, cfg.Debug)
 	assert.Empty(t, cfg.DevEmails)
+	assert.Empty(t, cfg.DevRegistrationCode)
 }
 
 func TestLoadRequiresDatabaseAndSecret(t *testing.T) {
@@ -47,6 +48,27 @@ func TestLoadDevEmailsRequireDebug(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, cfg.Debug)
 	assert.Equal(t, []string{"dev@example.com", "ops@example.com"}, cfg.DevEmails)
+}
+
+func TestLoadDevRegistrationCode(t *testing.T) {
+	vars := map[string]string{
+		"DATABASE_URL":          "postgres://db",
+		"JWT_SECRET":            secret,
+		"DEV_REGISTRATION_CODE": " 000000 ",
+	}
+
+	cfg, err := Load(env(vars))
+	require.NoError(t, err)
+	assert.Empty(t, cfg.DevRegistrationCode, "DEV_REGISTRATION_CODE is ignored without DEBUG")
+
+	vars["DEBUG"] = "true"
+	_, err = Load(env(vars))
+	assert.ErrorContains(t, err, "DEV_REGISTRATION_CODE requires DEV_EMAILS")
+
+	vars["DEV_EMAILS"] = "dev@example.com"
+	cfg, err = Load(env(vars))
+	require.NoError(t, err)
+	assert.Equal(t, "000000", cfg.DevRegistrationCode)
 }
 
 func TestLoadRejectsInvalidDebug(t *testing.T) {

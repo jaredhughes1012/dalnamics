@@ -5,8 +5,15 @@
 │ Agent controller │ ──────────────────────────▶ │ api/ (Python)    │ ─────────────────────────▶ │ firmware/        │
 │ / developer      │                             │ capability layer │                            │ Uno R4 WiFi      │
 └──────────────────┘                             └──────────────────┘                            └──────────────────┘
-                                                   runs on a laptop,  ◀──── video over WiFi ────   2× ESP32-CAM
-                                                   or an SBC on board                               (nose, gripper)
+                                                   │  runs on a laptop,  ◀──── video over WiFi ────   2× ESP32-CAM
+                                                   │  or an SBC on board                               (nose, gripper)
+                                                   │ MQTT (optional)
+                                                   ▼
+                                                 ┌──────────────────┐
+                                                 │ dalnamics        │
+                                                 │ Mosquitto ↔      │
+                                                 │ devicemgr        │
+                                                 └──────────────────┘
 ```
 
 The robot's physical design, parts list, and wiring are in [hardware.md](hardware.md).
@@ -21,6 +28,16 @@ The robot's physical design, parts list, and wiring are in [hardware.md](hardwar
 
 - `TcpTransport` talks to the firmware over WiFi, and pings it on a heartbeat while connected so motions that outlast a request keep running.
 - `SimTransport` simulates the firmware in process, with the same validation, limits, and timing, for development and tests without hardware.
+
+**Platform connection.** The API can join the dalnamics platform as a device (`harwood0_api.platform`). It registers once: given a one-time code from `cli devices register` or studio's Devices page, it does an MQTT handshake with devicemgr and stores the device ID and secret it gets back in `device.json` (owner-only) in its state directory. From then on it connects to the broker as that device and keeps the session open, reconnecting when it drops. Stored credentials always win over a code. Startup fails with a message saying what to do when the robot has neither, when the code is rejected or the handshake times out, or when the broker rejects the stored credentials. Without `HARWOOD0_MQTT_URL`, the API never touches the platform. The platform side is in the repo's [docs/devices.md](../../docs/devices.md).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `HARWOOD0_PORT` | `47800` | HTTP port of the API and viewer; set a different one per API to run several |
+| `HARWOOD0_MQTT_URL` | empty (no platform connection) | Platform broker, e.g. `mqtt://localhost:1883` for the local compose stack |
+| `HARWOOD0_REGISTRATION_CODE` | empty | One-time code; used only while no credentials are stored |
+| `HARWOOD0_DEVICE_NAME` | the hostname | Name shown in studio and `cli devices list` |
+| `HARWOOD0_STATE_DIR` | `~/.local/state/harwood0` | Where `device.json` is kept |
 
 The API has no dependency on where it runs. On a laptop it reaches the robot over WiFi. On a single-board computer mounted on the robot it can use the same TCP transport, or a serial transport over the Uno's spare UART; the firmware serves the same protocol on both.
 
@@ -39,10 +56,11 @@ The API has no dependency on where it runs. On a laptop it reaches the robot ove
 | Camera stream | MJPEG over HTTP | The OV2640 encodes JPEG in hardware, so the ESP32 only forwards frames. Browsers show MJPEG in an `<img>` tag with no player, and each part carries `Content-Length` so the API splits frames without decoding. |
 | API | Python + FastAPI | Python has the strongest robotics and vision ecosystem (OpenCV, PyTorch depth and detection models, Open3D) and a first-class MCP SDK for agent tooling. FastAPI generates an OpenAPI description of every capability. |
 | Firmware ↔ API link | Newline-delimited JSON over TCP (WiFi) and serial | The same framing on every transport, human-readable, and debuggable with `nc`. No broker or extra infrastructure. |
+| API ↔ platform link | MQTT 5 with aiomqtt | The platform's device transport. aiomqtt is asyncio-native, so the connection runs inside the API's event loop. |
 
 ## Testing
 
 - `cad/tests`: geometry validity, build-volume checks, key features, assembly interference and tipping in every named arm pose, reach, cable clearance over a sweep of poses, and agreement with the firmware's limits.
 - `firmware/test`: protocol and motion logic compiled and run on the host (`pio test -e native`). The protocol (`lib/protocol`) and the motion maths (`lib/motion`: limits, mecanum mixing, servo pulses, track steps) have no Arduino dependencies, so they can be tested without hardware.
-- `api/tests`: HTTP routes against the simulator with an injected clock, the simulator's validation, the TCP transport and heartbeat against a local fake firmware server, and the camera reader, its reconnects, and the camera routes against a mock MJPEG stream.
+- `api/tests`: HTTP routes against the simulator with an injected clock, the simulator's validation, the TCP transport and heartbeat against a local fake firmware server, the camera reader, its reconnects, and the camera routes against a mock MJPEG stream, and platform registration, credential storage, and the device connection against a fake MQTT client.
 - On hardware, `make check-robot` reaches the firmware through the API's transport and capability layer and times round trips. With the `hello` firmware (`firmware/src/hello`), which serves the protocol without driving any hardware, it checks WiFi and the link on a bare board ([hardware.md](hardware.md#connectivity-check)).

@@ -1,4 +1,5 @@
-// Package store owns devicemgr's Postgres schema, devicemgr.
+// Package store is devicemgr's Postgres data layer. It owns the devicemgr
+// schema and its migrations.
 package store
 
 import (

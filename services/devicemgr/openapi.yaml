@@ -3,9 +3,10 @@ info:
   title: dalnamics devicemgr
   version: 0.1.0
   description: >
-    Private API of devicemgr, the internal device service. Only the api calls
-    it. Every operation requires the shared service token unless it overrides
-    security.
+    Private API of devicemgr, the internal device service. The api calls it,
+    and so does the MQTT broker (Mosquitto with mosquitto-go-auth) to
+    authenticate and authorize clients. Every operation requires the shared
+    service token unless it overrides security.
 
 servers:
   - url: http://localhost:8081
@@ -26,6 +27,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+
+  /mqtt/user:
+    post:
+      operationId: checkMqttUser
+      summary: Decide whether the broker accepts a client's credentials
+      description: >-
+        mosquitto-go-auth's getuser check. The broker's HTTP backend cannot
+        send headers, so this takes no service token.
+      security: []
+      tags: [mqtt]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MqttUserRequest"
+      responses:
+        "200":
+          description: Accepted
+        "403":
+          description: Rejected
+
+  /mqtt/superuser:
+    post:
+      operationId: checkMqttSuperuser
+      summary: Decide whether a broker user bypasses topic ACLs
+      description: mosquitto-go-auth's superuser check. Takes no service token.
+      security: []
+      tags: [mqtt]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MqttSuperuserRequest"
+      responses:
+        "200":
+          description: Superuser
+        "403":
+          description: Not a superuser
+
+  /mqtt/acl:
+    post:
+      operationId: checkMqttAcl
+      summary: Decide whether a client may access a topic
+      description: mosquitto-go-auth's aclcheck. Takes no service token.
+      security: []
+      tags: [mqtt]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MqttAclRequest"
+      responses:
+        "200":
+          description: Allowed
+        "403":
+          description: Denied
 
 components:
   securitySchemes:
@@ -62,3 +122,36 @@ components:
           example: unauthenticated
         message:
           type: string
+
+    MqttUserRequest:
+      type: object
+      required: [username, password, clientid]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        clientid:
+          type: string
+
+    MqttSuperuserRequest:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+
+    MqttAclRequest:
+      type: object
+      required: [username, clientid, topic, acc]
+      properties:
+        username:
+          type: string
+        clientid:
+          type: string
+        topic:
+          type: string
+          description: Topic name, or topic filter for a subscription
+        acc:
+          type: integer
+          description: Requested access. 1 read, 2 write, 3 read and write, 4 subscribe.

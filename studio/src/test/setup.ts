@@ -1,16 +1,19 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { useAuthStore } from '@/stores/auth'
+import { useDevicesStore } from '@/stores/devices'
 import { useHealthStore } from '@/stores/health'
 import { useThemeStore } from '@/stores/theme'
 
 const initialAuth = useAuthStore.getState()
+const initialDevices = useDevicesStore.getState()
 const initialHealth = useHealthStore.getState()
 const initialTheme = useThemeStore.getState()
 
 beforeEach(() => {
   localStorage.clear()
   useAuthStore.setState(initialAuth, true)
+  useDevicesStore.setState(initialDevices, true)
   useHealthStore.setState(initialHealth, true)
   useThemeStore.setState(initialTheme, true)
 })

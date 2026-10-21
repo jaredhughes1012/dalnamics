@@ -34,7 +34,7 @@ test-go:
 test-studio:
 	cd studio && pnpm test
 
-# Starts (or reuses) postgres, the api, and studio, then runs Playwright.
+# Starts (or reuses) postgres, the api, devicemgr, mosquitto, and studio, then runs Playwright.
 test-e2e:
 	cd test/studio && pnpm install --frozen-lockfile && pnpm test
 

@@ -21,7 +21,7 @@ Run `.claude/workflow/scripts/context.sh [issue-number]`. Pass the number for `/
 
 ## 3. Check for overlap with open issues
 
-Compare the request with every other open issue from step 1. Classify each as:
+Compare the request with every other open issue from step 1. Issues that appear after step 1 (for example, one you notice while publishing) are out of scope for this run. Ignore them unless the user mentions them. Classify each issue from step 1 as:
 
 - **Unrelated**: ignore it.
 - **Prerequisite**: the request needs something that issue will build. This issue depends on it.
@@ -54,13 +54,15 @@ Fill in [issue-template.md](issue-template.md) in a scratchpad file, one per iss
 - **Depends on** lists issues by number. For new issues from a split, create those first (step 8) so their numbers exist.
 - **Original request** is the requester's text, verbatim.
 
-## 6. Review with the user
+## 6. Review changes (re-refine only)
 
-Print the full plan, plus a one-line title, in the terminal. Ask for changes, apply them, and repeat until the user approves. Nothing is published before approval.
+Only when re-refining, meaning the issue already carries a published refined plan (`/refine` on an issue labelled `refined`). Print the changes from the published plan, plus the title if it changes, in the terminal. Ask for changes, apply them, and repeat until the user approves. Nothing is republished before approval.
+
+Otherwise, skip this step and publish the first refined draft directly. This covers `/intake`, `/refine` on an issue that isn't refined yet, and new issues from a split. The questions in steps 3 and 4 already settled it.
 
 ## 7. Title
 
-Write an imperative title of at most about 70 characters that describes the outcome, e.g. "Let users reset a forgotten password". For `/refine`, keep the existing title unless it no longer fits; if it doesn't, propose the new one in step 6.
+Write an imperative title of at most about 70 characters that describes the outcome, e.g. "Let users reset a forgotten password". For `/refine`, keep the existing title unless it no longer fits; if it doesn't, pick a new one (proposed in step 6 when re-refining).
 
 ## 8. Publish
 

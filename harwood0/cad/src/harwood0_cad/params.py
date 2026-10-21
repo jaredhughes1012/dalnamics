@@ -6,6 +6,8 @@ one-line edit. Purchased-part dimensions live with their models in
 centre of the footprint on the ground. All units are millimetres.
 """
 
+from dataclasses import dataclass
+
 from harwood0_cad.hardware.battery import LIPO_H
 from harwood0_cad.hardware.boards import ESP32_CAM_LENS_TIP, UNO_HEIGHT
 from harwood0_cad.hardware.motors import GA25_GEARBOX_D, GA25_LENGTH
@@ -26,49 +28,52 @@ SERVO_FIT_CLEARANCE = 0.5
 WALL = 2.4
 
 # Fasteners: machine screws into heat-set inserts, or through-bolted with a nut where an
-# insert has no room. Insert holes are sized for common kit inserts (M2.5 x 4 mm, about
-# 3.5 mm across the knurl; M3 x 4 mm, about 4.2 mm); check the maker's recommended hole,
-# and calibrate with the tolerance coupon.
-M3_CLEARANCE_D = 3.2 + FIT_CLEARANCE
-M3_HEAD_D = 6.0
-M3_INSERT_HOLE_D = 4.0
-M3_INSERT_L = 4.0
-M3_NUT_AF = 5.5  # across the flats
-M3_NUT_T = 2.4
-M2_5_CLEARANCE_D = 2.7 + FIT_CLEARANCE
-M2_5_HEAD_D = 4.5
-M2_5_INSERT_HOLE_D = 3.2
-M2_5_INSERT_L = 4.0
-M2_5_NUT_AF = 5.0
-M2_5_NUT_T = 2.0
+# insert has no room. Insert holes are sized for common kit inserts (M3 x 4 mm, about
+# 4.2 mm across the knurl; M2.5 x 4 mm, about 3.5 mm); check the maker's recommended hole,
+# and calibrate with the tolerance coupon. Each hole opens into a shallow lead-in a little
+# wider than the insert, which holds it upright while the iron heats it.
 INSERT_HOLE_EXTRA = 1.0  # hole depth past the insert, for the plastic it displaces
 INSERT_WALL = 1.5  # plastic left around an insert's hole
+INSERT_LEAD_IN_DEPTH = 1.0  # the lead-in's depth, at the hole's mouth
 NUT_CLEARANCE = 0.2  # around a nut in a hex pocket
 
-# The structural screws (everything but the motors' face screws, which thread into the
-# gearbox, and the screws supplied with the MG90S servos). M2.5 for now; the final build
-# should use M3 where docs/hardware.md#final-build-screws says, by setting this to "M3".
-STRUCTURAL_SCREW = "M2.5"
-(
-    SCREW_CLEARANCE_D,
-    SCREW_HEAD_D,
-    INSERT_HOLE_D,
-    INSERT_L,
-    NUT_AF,
-    NUT_T,
-) = {
-    "M2.5": (
-        M2_5_CLEARANCE_D,
-        M2_5_HEAD_D,
-        M2_5_INSERT_HOLE_D,
-        M2_5_INSERT_L,
-        M2_5_NUT_AF,
-        M2_5_NUT_T,
-    ),
-    "M3": (M3_CLEARANCE_D, M3_HEAD_D, M3_INSERT_HOLE_D, M3_INSERT_L, M3_NUT_AF, M3_NUT_T),
-}[STRUCTURAL_SCREW]
-INSERT_DEPTH = INSERT_L + INSERT_HOLE_EXTRA
-INSERT_BOSS_D = INSERT_HOLE_D + 2 * INSERT_WALL  # smallest boss or post an insert goes in
+
+@dataclass(frozen=True)
+class Screw:
+    """A machine screw size, with its heat-set insert and nut."""
+
+    name: str
+    clearance_d: float  # a hole it passes through freely
+    head_d: float
+    head_h: float
+    insert_hole_d: float
+    insert_l: float
+    insert_od: float  # across the insert's knurl
+    nut_af: float  # across the flats
+    nut_t: float
+
+    @property
+    def insert_depth(self) -> float:
+        return self.insert_l + INSERT_HOLE_EXTRA
+
+    @property
+    def insert_lead_in_d(self) -> float:
+        return self.insert_od + FIT_CLEARANCE
+
+    @property
+    def insert_boss_d(self) -> float:
+        """The smallest boss or post an insert goes in."""
+        return self.insert_hole_d + 2 * INSERT_WALL
+
+
+M3 = Screw("M3", 3.2 + FIT_CLEARANCE, 6.0, 3.0, 4.0, 4.0, 4.2, 5.5, 2.4)
+M2_5 = Screw("M2.5", 2.7 + FIT_CLEARANCE, 4.5, 2.5, 3.2, 4.0, 3.5, 5.0, 2.0)
+
+# Every structural screw is M3, except into boards whose mounting holes are too small for it.
+STRUCTURAL_SCREW = M3
+UNO_SCREW = M3  # 3.2 mm holes
+ULN2003_SCREW = M2_5  # 3.0 mm holes
+PCA9685_SCREW = M2_5  # 2.5 mm holes
 
 # Body: a flat box, rounded at the nose, open on top under a removable work table.
 CHASSIS_L = 240.0
@@ -155,7 +160,6 @@ TOP_PLATE_SNAPS = (
 BATTERY_CENTER = (0.0, 34.0)
 UNO_ORIGIN = (6.6, 0.4)  # board rotated 180 deg: this is its bottom-left corner after rotation
 UNO_STANDOFF_H = 5.0
-BOARD_STANDOFF_D = INSERT_BOSS_D
 TB6612_CENTERS = ((46.0, -18.0), (46.0, -42.0))  # front-wheel driver, rear-wheel driver
 UBEC_CENTER = (0.0, 74.0)  # left side bay
 ULN2003_CENTER = (0.0, -78.5)  # right side bay, under the track

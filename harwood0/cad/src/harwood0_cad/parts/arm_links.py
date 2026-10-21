@@ -1,9 +1,12 @@
 """Arm links: the upper arm and the forearm (which carries the gripper).
 
 Each joint is an MG90S or a DS3218 whose horn seats in a pocket on the next link's
-back face and is held by the servo's centre horn screw (disc horns also take four
-screws). Each MG90S slides through a window in the link that carries it, shaft
-first, and screws on by its tabs using the screws supplied with the servo.
+back face. A disc horn screws to its link by four screws, and its centre screw goes
+through the link's centre hole into the spline. An MG90S horn is held by its centre
+screw alone, driven through the link, so it needs a longer screw than the one supplied.
+Each MG90S drops bottom first into a window in the link that carries it, from the
+side its shaft points to, and screws on by its tabs using the screws supplied with the
+servo.
 
 Printed C-clips along each link's edge carry the elbow, gripper, and arm camera
 leads up to the shoulder; press each flat lead in through the gap in the clip's
@@ -24,6 +27,7 @@ from harwood0_cad.arm_geometry import (
     GRIPPER_Y,
     LINK_T,
     MG90S_HORN_POCKET,
+    STD_HORN_CENTRE_HOLE_D,
     STD_HORN_POCKET,
 )
 from harwood0_cad.hardware.motors import (
@@ -98,11 +102,11 @@ def upper_arm() -> Part:
     link = _bar((0, LINK_T), (0, length + 14), LINK_W / 2)
     link += cylinder(SHOULDER_DISC_R, (0, LINK_T), axis="x")
     link -= cylinder(STD_HORN_D / 2 + p.FIT_CLEARANCE, (-0.1, STD_HORN_POCKET), axis="x")
-    link -= cylinder(2.0, (-1, LINK_T + 1), axis="x")
+    link -= cylinder(STD_HORN_CENTRE_HOLE_D / 2, (-1, LINK_T + 1), axis="x")
     for i in range(4):
         angle = math.radians(45 + 90 * i)
         at = (STD_HORN_SCREW_R * math.cos(angle), STD_HORN_SCREW_R * math.sin(angle))
-        link -= cylinder(p.M3_CLEARANCE_D / 2 - 0.2, (-1, LINK_T + 1), axis="x", at=at)
+        link -= cylinder(p.M3.clearance_d / 2, (-1, LINK_T + 1), axis="x", at=at)
     link -= _mg90s_mount(LINK_T, length)
     # The upper arm is mounted mirrored, so its -Z edge is the top one.
     for y in UPPER_ARM_CLIPS:
@@ -116,14 +120,16 @@ def forearm() -> Part:
 
     tip_end = GRIPPER_Y + BASE_HALF_Y
     arm = _bar((0, FOREARM_T), (-8, tip_end - LINK_W / 2), LINK_W / 2)
-    pad_z = BASE_SCREW_Z + p.SCREW_HEAD_D / 2 + 1.5  # round the base's screw heads
+    pad_z = BASE_SCREW_Z + p.STRUCTURAL_SCREW.head_d / 2 + 1.5  # round the base's screw heads
     arm += box((0, FOREARM_T), (GRIPPER_Y - BASE_HALF_Y, tip_end), (-pad_z, pad_z))
     arm += cylinder(MG90S_HORN_LENGTH / 2 + 2, (0, FOREARM_T), axis="x")
     arm -= _mg90s_horn_pocket(0)
     arm -= _mg90s_mount(FOREARM_T, GRIPPER_Y)
     for y, z in BASE_SCREWS:
-        arm -= cylinder(p.SCREW_CLEARANCE_D / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z))
-        arm -= cylinder(p.SCREW_HEAD_D / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
+        arm -= cylinder(
+            p.STRUCTURAL_SCREW.clearance_d / 2, (-1, FOREARM_T + 1), axis="x", at=(y, z)
+        )
+        arm -= cylinder(p.STRUCTURAL_SCREW.head_d / 2 + 0.2, (-1, 1.5), axis="x", at=(y, z))
     for y in FOREARM_CLIPS:
         arm += _wire_clip(y, 1)
     return arm

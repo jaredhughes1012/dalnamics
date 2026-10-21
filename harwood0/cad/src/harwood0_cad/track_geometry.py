@@ -18,8 +18,13 @@ SLOT_END_WALL = 8.0  # solid strip left at each end of the slot
 # whole carriage in. Two lip strips then screw into it and rebuild the dovetail, so the
 # carriage can run the full slot.
 ENTRY_L = p.CARRIAGE_L + 2.0
-POCKET_HALF_W = 15.0
-LIP_SCREW_Y = 13.0  # lip strip screws, either side of the slot centreline
+# Wide enough that the lip strips have room round their screws' clearance holes and
+# counterbores at M3.
+POCKET_HALF_W = 17.5
+# Lip strip screws, either side of the slot centreline: as far out as the top plate's insert
+# bosses allow, hanging beside the motor wall, for plastic between the hole and the
+# dovetail's slope at the strip's foot.
+LIP_SCREW_Y = 13.3
 LIP_SCREW_INSET = 8.0  # from each end of the pocket
 
 # Rack: 20 degree pressure angle, teeth standing on the slot floor along its centreline.

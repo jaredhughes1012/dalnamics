@@ -280,7 +280,7 @@ Before wiring anything, check the Uno joins your WiFi and the API can reach it. 
      ping x20   ok    min 6 / median 9 / max 38 ms
    ```
 
-   It exits non-zero and names the failing step if anything goes wrong. `make api` with the same `HARWOOD0_ROBOT_URL` then serves the robot over HTTP at `http://127.0.0.1:8000/docs`.
+   It exits non-zero and names the failing step if anything goes wrong. `make api` with the same `HARWOOD0_ROBOT_URL` then serves the robot over HTTP at `http://127.0.0.1:47800/docs`.
 
 If it can't connect, check the laptop is on the same network and that the network doesn't isolate clients from each other (guest networks often do). You can also try `nc 192.168.1.50 7777` and type `{"id":1,"cmd":"ping"}`. Round trips well over 100 ms suggest a weak signal: the firmware's command timeout is 1 s, and the API's heartbeat pings every 0.3 s.
 
@@ -307,7 +307,7 @@ Both cameras run the firmware in `camera/`. Each build names its camera, which s
    ```
 
    Open the status address in a browser to check it is reachable. `/capture` there returns one JPEG.
-4. Run `make api`, and open `http://127.0.0.1:8000/` for the viewer. The API finds the cameras by hostname. If mDNS doesn't resolve on your network, use the IP address instead: `HARWOOD0_NOSE_CAMERA_URL=http://192.168.1.51:81/stream make api`.
+4. Run `make api`, and open `http://127.0.0.1:47800/` for the viewer. The API finds the cameras by hostname. If mDNS doesn't resolve on your network, use the IP address instead: `HARWOOD0_NOSE_CAMERA_URL=http://192.168.1.51:81/stream make api`.
 
 Each camera streams to one client at a time, and the API holds that connection while it runs. Watch through the viewer, or `/cameras/nose/stream`, rather than the camera's own stream address.
 

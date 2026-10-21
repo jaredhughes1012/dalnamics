@@ -18,7 +18,9 @@ class Settings:
     nose_camera_url: str = "http://harwood0-nose.local:81/stream"
     arm_camera_url: str = "http://harwood0-arm.local:81/stream"
     host: str = "127.0.0.1"
-    port: int = 8000
+    # Off the common dev ports (8000, 8080, ...) so the API runs beside the platform stack.
+    # Set HARWOOD0_PORT to run several APIs at once.
+    port: int = 47800
     # MQTT broker of the dalnamics platform (mqtt://host:port). Empty disables the platform
     # connection, so the API runs standalone.
     mqtt_url: str = ""

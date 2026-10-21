@@ -95,23 +95,26 @@ def test_settings_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv("HARWOOD0_REGISTRATION_CODE", "AB3D7K")
     monkeypatch.setenv("HARWOOD0_DEVICE_NAME", "bench-rover")
     monkeypatch.setenv("HARWOOD0_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("HARWOOD0_PORT", "47801")
     s = Settings.from_env()
-    assert (s.mqtt_url, s.registration_code, s.device_name, s.state_dir) == (
+    assert (s.mqtt_url, s.registration_code, s.device_name, s.state_dir, s.port) == (
         URL,
         "AB3D7K",
         "bench-rover",
         tmp_path,
+        47801,
     )
 
 
 def test_settings_defaults(monkeypatch):
-    for name in ("MQTT_URL", "REGISTRATION_CODE", "DEVICE_NAME", "STATE_DIR"):
+    for name in ("MQTT_URL", "REGISTRATION_CODE", "DEVICE_NAME", "STATE_DIR", "PORT"):
         monkeypatch.delenv(f"HARWOOD0_{name}", raising=False)
     s = Settings.from_env()
     assert s.mqtt_url == ""
     assert s.registration_code == ""
     assert s.device_name
     assert s.state_dir == Path.home() / ".local/state/harwood0"
+    assert s.port == 47800
 
 
 def test_credentials_round_trip_owner_only(tmp_path):

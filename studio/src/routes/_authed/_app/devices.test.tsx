@@ -75,7 +75,13 @@ describe('devices', () => {
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByLabelText('Registration code')).toHaveTextContent('AB3D7K')
     expect(within(dialog).getByRole('timer')).toHaveTextContent('Expires in 10:00')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy code' }))
+    expect(await navigator.clipboard.readText()).toBe('AB3D7K')
+    expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+
     await advance(2000)
+    expect(within(dialog).getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
     expect(within(dialog).getByText('Waiting for the device…')).toBeInTheDocument()
     expect(within(dialog).getByRole('timer')).toHaveTextContent('Expires in 9:58')
 

@@ -33,6 +33,7 @@ The robot's physical design, parts list, and wiring are in [hardware.md](hardwar
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `HARWOOD0_PORT` | `47800` | HTTP port of the API and viewer; set a different one per API to run several |
 | `HARWOOD0_MQTT_URL` | empty (no platform connection) | Platform broker, e.g. `mqtt://localhost:1883` for the local compose stack |
 | `HARWOOD0_REGISTRATION_CODE` | empty | One-time code; used only while no credentials are stored |
 | `HARWOOD0_DEVICE_NAME` | the hostname | Name shown in studio and `cli devices list` |

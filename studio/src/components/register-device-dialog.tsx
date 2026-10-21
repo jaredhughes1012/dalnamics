@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleCheck } from 'lucide-react'
+import { Check, CircleCheck, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormError } from '@/components/form-error'
@@ -9,6 +9,9 @@ import { useDevicesStore } from '@/stores/devices'
 
 /** How often the dialog checks whether a device has redeemed the code. */
 const POLL_INTERVAL_MS = 2000
+
+/** How long the copy button shows that the code was copied. */
+const COPIED_MS = 2000
 
 type Phase =
   | { name: 'issuing' }
@@ -124,10 +127,11 @@ function RegisterDevice({ onDone }: { onDone: () => void }) {
           </DialogHeader>
           <p
             aria-label="Registration code"
-            className="text-center font-mono text-4xl font-semibold tracking-[0.3em] select-all"
+            className="text-center font-mono text-4xl font-semibold tracking-[0.3em]"
           >
             {phase.code.code}
           </p>
+          <CopyButton text={phase.code.code} />
           <p role="timer" className="text-center text-sm text-muted-foreground">
             Expires in {formatRemaining(Date.parse(phase.code.expires_at) - now)}
           </p>
@@ -164,4 +168,28 @@ function RegisterDevice({ onDone }: { onDone: () => void }) {
         </>
       )
   }
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+    const reset = setTimeout(() => setCopied(false), COPIED_MS)
+    return () => clearTimeout(reset)
+  }, [copied])
+
+  function copy() {
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(true),
+      () => {},
+    )
+  }
+
+  return (
+    <Button variant="outline" size="sm" className="mx-auto" onClick={copy}>
+      {copied ? <Check data-icon="inline-start" aria-hidden /> : <Copy data-icon="inline-start" aria-hidden />}
+      {copied ? 'Copied' : 'Copy code'}
+    </Button>
+  )
 }

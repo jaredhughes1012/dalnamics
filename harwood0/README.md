@@ -33,8 +33,8 @@ make flash-hello   # flash the connectivity-check firmware, which drives no hard
 make check-robot   # check the API can reach the robot (HARWOOD0_ROBOT_URL) and read its state
 make camera        # build the camera firmware
 make flash-camera  # flash a camera (CAMERA=nose or arm) and open the serial monitor
-make api-sim       # run the API against the in-process simulator on :8000
-make api           # run the API against real hardware (HARWOOD0_ROBOT_URL), viewer on :8000
+make api-sim       # run the API against the in-process simulator on :47800 (HARWOOD0_PORT)
+make api           # run the API against real hardware (HARWOOD0_ROBOT_URL), viewer on :47800
 ```
 
 Before the first firmware build, copy `firmware/include/secrets.example.h` to `firmware/include/secrets.h` and set your WiFi credentials. Do the same in `camera/include/` before the first camera build.
@@ -56,3 +56,12 @@ The API can connect to the platform as a device, so it shows up in studio and `c
 The local platform stack also seeds the code `000000` for `dev@dalnamics.local`. It never expires and works once after each api start, so `HARWOOD0_REGISTRATION_CODE=000000` skips step 1.
 
 To register again, for example after the platform's database is reset, delete `device.json` and repeat with a new code. `HARWOOD0_DEVICE_NAME` sets the name shown on the platform (default: the hostname). Without `HARWOOD0_MQTT_URL`, the API runs standalone.
+
+To run several emulators at once, give each its own port and state directory. They would otherwise share `device.json` and connect as the same device, and the broker drops one connection whenever the other connects. Each registers with its own code:
+
+```sh
+HARWOOD0_PORT=47801 HARWOOD0_STATE_DIR=/tmp/harwood0-a HARWOOD0_DEVICE_NAME=sim-a \
+  HARWOOD0_MQTT_URL=mqtt://localhost:1883 HARWOOD0_REGISTRATION_CODE=AB3D7K make api-sim
+HARWOOD0_PORT=47802 HARWOOD0_STATE_DIR=/tmp/harwood0-b HARWOOD0_DEVICE_NAME=sim-b \
+  HARWOOD0_MQTT_URL=mqtt://localhost:1883 HARWOOD0_REGISTRATION_CODE=ZX9W8V make api-sim
+```

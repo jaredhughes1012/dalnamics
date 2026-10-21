@@ -66,7 +66,12 @@ The developer is refining other work while this runs. Ask every question during 
     - The branch name and worktree path, with how to switch to them: `git switch <branch>` from the main checkout once the worktree is removed, or `cd <worktree path>`.
     - The PR link.
     - Each validation command and its result, and the final CI status.
-    - The **manual test plan**: numbered steps a developer follows to check each acceptance criterion by hand, with the commands to start what's needed (`make up`, `make run-studio`, cli commands) and the expected result of each step.
+    - The **manual test plan**: numbered steps a developer follows to check each acceptance criterion by hand, with the expected result of each step. Give every command ready to paste, with the issue number filled in and run from the main checkout's root:
+      - Step 1 is always `./test_issue.sh $ARGUMENTS`. It starts the worktree's compose stack and the studio dev server (http://localhost:5173, api on :8080), stopping any stack that collides with it. Don't tell the developer to run `make up` or `make run-studio` themselves.
+      - Middle steps are the checks themselves, including any cli commands (run from the worktree, e.g. `cd <worktree path> && go run ./services/cli/cmd ...`).
+      - The last step is always `./cleanup_test.sh`.
+
+      Depart from this only when the scripts can't cover the change (e.g. it needs a different env, a service the scripts don't start, or no running stack at all). Then say why, and give the exact commands to use instead and to tear them down.
 
     Then offer to write the test plan to a file.
 

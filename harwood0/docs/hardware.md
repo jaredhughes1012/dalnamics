@@ -107,7 +107,8 @@ The screws are M3, except into the ULN2003 and PCA9685, whose mounting holes are
 | Shoulder servo tabs → yaw bracket | 4 | M3 × 10, in from behind the plate | Nut, on top of each tab |
 | Gripper base → forearm | 2 | M3 × 8, from the forearm's back face | Insert |
 | Disc horns → yaw bracket and upper arm | 8 | Supplied with the servos | The horn |
-| Horn centre screws | | Supplied with the servos | The servo's spline |
+| Disc horn centre screws | 2 | Supplied with the servos, through the part's centre hole | The servo's spline |
+| MG90S horn screws, through the forearm and the gripper gear | 2 | M2 × 8 (elbow) and M2 × 6 (gripper); the supplied screws are too short. Check the spline's screw depth first. | The servo's spline |
 | MG90S tab screws | | Supplied with the servos | Self-tapping into printed pilot holes |
 
 The yaw servo's lead runs between its front tab screws, through a notch in the hood floor, so the notch opens the inside corner of those two nut pockets. The rest of each pocket still stops its nut turning.
@@ -341,16 +342,16 @@ The order matters in a few places, marked **Order**: some screws can't be reache
    - Send `{"id":1,"cmd":"arm","args":{"yaw":0,"shoulder":0,"elbow":-85,"grip":45}}`. This is the centre of every joint's range, and every servo moves to its 1500 µs centre.
    - Fit each horn below in the pose described.
 10. **Yaw bracket.**
-    - Seat the yaw servo's disc horn in the pocket on top of the bracket and screw it on.
-    - **Order**: fit the horn's centre screw onto the servo now, with the bracket pointing across the table (yaw 0). The shoulder servo blocks it afterwards.
-    - Slide the shoulder servo in through the bracket's window, shaft first, with its lead through the notch at the window's top end.
+    - Seat the yaw servo's disc horn in the pocket on top of the bracket and screw it on from below.
+    - **Order**: fit the bracket and horn onto the yaw servo's spline, pointing across the table (yaw 0), and drive the horn's centre screw through the bracket's centre hole now. The shoulder servo blocks it afterwards.
+    - Drop the shoulder servo into the bracket's window bottom first, from the shaft side, with its lead through the notch at the window's top end.
     - Bolt its tabs to the plate: hold a nut on top of each tab and drive the screw in from behind the plate. Reach the top two through the gap above the servo, from the bracket's open back.
 11. **Upper arm.**
-    - Slide the elbow servo through its window, shaft first, and screw its tabs on.
+    - Drop the elbow servo into its window bottom first, from the back face, and screw its tabs on.
     - Seat the shoulder's disc horn in the pocket on the upper arm's back face and screw it on.
-    - Fit the arm onto the shoulder spline with the upper arm horizontal (shoulder 0), and fit the centre screw.
+    - Fit the arm onto the shoulder spline with the upper arm horizontal (shoulder 0), and drive the centre screw through the arm's centre hole.
 12. **Forearm and gripper.** **Order**: the gripper servo goes into the forearm before the gripper base covers its tab screws.
-    - Screw the gripper servo into the forearm.
+    - Drop the gripper servo into the forearm's window bottom first, from the front face, and screw its tabs on.
     - Screw the gripper base on from the forearm's back face.
     - Slide the two jaws into their grooves from the side, open the same distance (about 19 mm between the fingers, which is grip 45).
     - Put the horn, trimmed to 16 mm tip to tip, in the gear's back pocket. Fit the gear onto the spline between the racks, and fit the horn screw.

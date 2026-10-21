@@ -52,6 +52,7 @@ from harwood0_cad.hardware.motors import (
     MG90S_GEAR_BOSS_D,
     MG90S_HORN_ARM_W,
     MG90S_HORN_HUB_D,
+    MG90S_TAB_T,
 )
 from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.shapes import box, cylinder
@@ -72,8 +73,9 @@ BASE_SCREWS = (
 )
 
 # Arm camera: its PCB stands across the back of the base with its long axis along X, the
-# camera end outermost so the lens looks along the jaws from just outside the fingers' plane.
-CAM_CENTER_X = 26.0
+# camera end outermost so the lens looks along the jaws from just outside the fingers' plane,
+# and its SD-card end just clear of the gripper servo's tabs.
+CAM_CENTER_X = FOREARM_T + MG90S_TAB_T + 0.5 + ESP32_CAM_L / 2
 CAM_FRONT_Y = GRIPPER_Y - BASE_HALF_Y - 2.5  # PCB front (lens) face
 CAM_RAIL_T = 2.0
 CAM_LIP_T = 1.2

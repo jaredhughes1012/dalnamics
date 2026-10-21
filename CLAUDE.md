@@ -86,6 +86,11 @@ The api seeds the users in `DEV_EMAILS` when `DEBUG=true`, and they sign in with
 Work is planned and built through GitHub issues with three project skills:
 
 - `/intake <description>` and `/refine <issue#>` turn a request into a refined plan. They share one procedure (`.claude/workflow/refine.md`) and differ only in input: `/intake` creates a new issue, `/refine` rewrites an existing one. Each asks follow-up questions and checks for overlap with open issues. Overlapping work becomes a `Depends on` link and is never added to an existing issue. The issue body follows `.claude/workflow/issue-template.md` and gets the `refined` label.
-- `/implement <issue#>` runs in plan mode and asks all its questions before approval, so it can then run unattended. It refuses unrefined issues, issues labelled `in-progress`, and issues whose dependencies aren't closed as completed. After approval it claims the issue (`in-progress`), works in its own worktree at `../dalnamics.worktrees/issue-<n>-<slug>` on branch `issue/<n>-<slug>`, and opens a draft PR. It is done only when CI passes, and it ends by printing the branch and a manual test plan.
+- `/implement <issue#>` runs in plan mode and asks all its questions before approval, so it can then run unattended. It refuses unrefined issues, issues labelled `in-progress`, and issues whose dependencies aren't closed as completed. After approval it claims the issue (`in-progress`), works in its own worktree at `worktrees/issue-<n>-<slug>` (ignored by git and docker) on branch `issue/<n>-<slug>`, and opens a draft PR. It is done only when CI passes, and it ends by printing the branch and a manual test plan that starts with `./test_issue.sh <n>` and ends with `./cleanup_test.sh`.
 
 GitHub I/O for these skills lives in `.claude/workflow/scripts/` (`context.sh`, `issue-publish.sh`, `issue-create.sh`, `deps.sh`, `claim.sh`, `release.sh`, `worktree.sh`). Change behavior there, not by duplicating logic in a skill.
+
+Developers test an issue's worktree by hand with two scripts at the repo root, run from the main checkout:
+
+- `./test_issue.sh <n>` runs `make up` in the issue's worktree and starts `make run-studio` in the background. Container names and ports are fixed, so it first cleans up any previous test session and stops any other compose stack that holds the same container names, such as the main checkout's.
+- `./cleanup_test.sh` stops the dev server, tears down the worktree's stack with its volumes, and restarts the services `test_issue.sh` stopped.

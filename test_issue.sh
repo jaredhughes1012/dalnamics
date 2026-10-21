@@ -4,7 +4,9 @@
 # background. Container names and ports are fixed, so only one stack can run at
 # a time: a previous test session is cleaned up first, and any other compose
 # stack holding the same container names (e.g. the main checkout's) is stopped
-# and recorded so cleanup_test.sh can restart it.
+# and recorded so cleanup_test.sh can restart it. If the api seeds a dev device
+# registration code, it also prints a command that starts the harwood0 emulator
+# registered with that code.
 #
 # usage: test_issue.sh <issue-number>
 set -euo pipefail
@@ -14,6 +16,7 @@ root="$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-
 state="$root/worktrees/.test-session"
 restore="$root/worktrees/.test-restore"
 log="$root/worktrees/.test-studio.log"
+harwood0_state="$root/worktrees/.test-harwood0"
 studio_port=5173
 
 shopt -s nullglob
@@ -70,4 +73,16 @@ echo
 echo "Testing #$n from $dir"
 echo "  studio: http://localhost:$studio_port (log: $log)"
 echo "  api:    http://localhost:8080"
+
+dev_code="$(jq -r '.services.api.environment.DEV_REGISTRATION_CODE // empty' <<<"$config")"
+if [[ -n "$dev_code" && -d "$dir/harwood0" ]]; then
+  # A fresh state dir per session, so the emulator registers against this
+  # stack's database instead of reusing credentials from an earlier one.
+  echo
+  echo "To start the harwood0 emulator registered to the first dev user (dev@dalnamics.local):"
+  printf '  (cd %q && HARWOOD0_MQTT_URL=mqtt://localhost:1883 HARWOOD0_REGISTRATION_CODE=%q HARWOOD0_STATE_DIR=%q make api-sim)\n' \
+    "$dir/harwood0" "$dev_code" "$harwood0_state"
+fi
+
+echo
 echo "Stop with: $here/cleanup_test.sh"

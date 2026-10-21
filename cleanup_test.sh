@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Stops what test_issue.sh started: the studio dev server and the worktree's
-# compose stack, including its volumes. Then restarts the services of any stack
-# test_issue.sh stopped to free the container names.
+# compose stack, including its volumes, and deletes the harwood0 emulator's
+# credentials, which belonged to that stack. Then restarts the services of any
+# stack test_issue.sh stopped to free the container names.
 #
 # usage: cleanup_test.sh
 set -euo pipefail
@@ -39,4 +40,5 @@ if [[ -f "$restore" ]]; then
   done <"$restore"
 fi
 
+rm -rf "$root/worktrees/.test-harwood0"
 rm -f "$state" "$restore"

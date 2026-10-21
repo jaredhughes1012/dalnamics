@@ -53,4 +53,6 @@ The API can connect to the platform as a device, so it shows up in studio and `c
    It registers, saves its credentials to `~/.local/state/harwood0/device.json` (`HARWOOD0_STATE_DIR` relocates it), and stays connected.
 3. Later runs need only `HARWOOD0_MQTT_URL`; the stored credentials are reused, and a code, if set, is ignored.
 
+The local platform stack also seeds the code `000000` for `dev@dalnamics.local`. It never expires and works once after each api start, so `HARWOOD0_REGISTRATION_CODE=000000` skips step 1.
+
 To register again, for example after the platform's database is reset, delete `device.json` and repeat with a new code. `HARWOOD0_DEVICE_NAME` sets the name shown on the platform (default: the hostname). Without `HARWOOD0_MQTT_URL`, the API runs standalone.

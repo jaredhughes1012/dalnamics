@@ -89,6 +89,8 @@ The api seeds the users in `DEV_EMAILS` when `DEBUG=true`, and they sign in with
 - New users: create them with `uniqueEmail()`.
 - Devices: play the device's side over MQTT with `handshake()` and `connectBroker()` from `tests/device.ts`.
 
+The api also seeds `DEV_REGISTRATION_CODE` (compose: `000000`) for `dev@dalnamics.local`, so a local harwood0 registers without studio. Each api start lets it be redeemed once, so e2e tests issue their own codes rather than use it.
+
 ## Issue workflow
 
 Work is planned and built through GitHub issues with three project skills:

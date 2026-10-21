@@ -15,6 +15,9 @@ type Querier interface {
 	DeleteExpiredDeviceRegistrationCodes(ctx context.Context) error
 	// Reads devicemgr's schema, which the api may read but never writes.
 	ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]ListDevicesByUserRow, error)
+	// Gives the code a new id on every call, so a code already redeemed (whose old
+	// id devicemgr.devices holds) can be redeemed once more.
+	SeedDeviceRegistrationCode(ctx context.Context, arg SeedDeviceRegistrationCodeParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

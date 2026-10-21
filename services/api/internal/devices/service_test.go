@@ -121,6 +121,25 @@ func TestIssueRegistrationCodeFailsWhenCleanupFails(t *testing.T) {
 	assert.ErrorIs(t, err, boom)
 }
 
+func TestSeedDevRegistrationCode(t *testing.T) {
+	s, q := newMockedService(t)
+	sum := sha256.Sum256([]byte("000000"))
+	q.EXPECT().SeedDeviceRegistrationCode(gomock.Any(), storedevices.SeedDeviceRegistrationCodeParams{
+		CodeHash: sum[:],
+		Email:    "dev@example.com",
+	}).Return(int64(1), nil)
+
+	require.NoError(t, s.SeedDevRegistrationCode(context.Background(), "dev@example.com", "000000"))
+}
+
+func TestSeedDevRegistrationCodeFailsWithoutUser(t *testing.T) {
+	s, q := newMockedService(t)
+	q.EXPECT().SeedDeviceRegistrationCode(gomock.Any(), gomock.Any()).Return(int64(0), nil)
+
+	err := s.SeedDevRegistrationCode(context.Background(), "nobody@example.com", "000000")
+	assert.ErrorContains(t, err, "no user nobody@example.com")
+}
+
 func TestList(t *testing.T) {
 	s, q := newMockedService(t)
 	userID := uuid.New()

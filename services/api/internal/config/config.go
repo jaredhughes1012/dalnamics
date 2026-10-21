@@ -21,6 +21,10 @@ type Config struct {
 	// DevEmails are users seeded at startup and allowed to use dev login
 	// (DEV_EMAILS, comma separated). Always empty unless Debug is set.
 	DevEmails []string
+	// DevRegistrationCode is a device registration code seeded at startup for
+	// the first of DevEmails (DEV_REGISTRATION_CODE). It never expires. Always
+	// empty unless Debug is set.
+	DevRegistrationCode string
 }
 
 const minJWTSecretLen = 32
@@ -52,6 +56,10 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	if cfg.Debug {
 		cfg.DevEmails = parseEmails(getenv("DEV_EMAILS"))
+		cfg.DevRegistrationCode = strings.TrimSpace(getenv("DEV_REGISTRATION_CODE"))
+		if cfg.DevRegistrationCode != "" && len(cfg.DevEmails) == 0 {
+			errs = append(errs, errors.New("DEV_REGISTRATION_CODE requires DEV_EMAILS"))
+		}
 	}
 
 	return cfg, errors.Join(errs...)

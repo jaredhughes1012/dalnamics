@@ -55,14 +55,21 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		JWTSecret: cfg.JWTSecret,
 		DevEmails: cfg.DevEmails,
 	})
+	devicesSvc := devices.NewService(q, devices.Config{})
 	if cfg.Debug {
 		if err := authSvc.SeedDevUsers(ctx); err != nil {
 			return err
 		}
 		logger.Warn("DEBUG enabled: dev login is available", "dev_emails", cfg.DevEmails)
+		if cfg.DevRegistrationCode != "" {
+			if err := devicesSvc.SeedDevRegistrationCode(ctx, cfg.DevEmails[0], cfg.DevRegistrationCode); err != nil {
+				return err
+			}
+			logger.Warn("DEBUG enabled: dev device registration code seeded", "email", cfg.DevEmails[0])
+		}
 	}
 
-	handler, err := server.NewHandler(authSvc, devices.NewService(q, devices.Config{}), logger)
+	handler, err := server.NewHandler(authSvc, devicesSvc, logger)
 	if err != nil {
 		return err
 	}

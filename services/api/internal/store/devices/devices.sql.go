@@ -75,3 +75,25 @@ func (q *Queries) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]Li
 	}
 	return items, nil
 }
+
+const seedDeviceRegistrationCode = `-- name: SeedDeviceRegistrationCode :execrows
+INSERT INTO device_registration_codes (code_hash, user_id, expires_at)
+SELECT $1::bytea, id, 'infinity' FROM users WHERE email = $2
+ON CONFLICT (code_hash) DO UPDATE
+SET id = gen_random_uuid(), user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at
+`
+
+type SeedDeviceRegistrationCodeParams struct {
+	CodeHash []byte
+	Email    string
+}
+
+// Gives the code a new id on every call, so a code already redeemed (whose old
+// id devicemgr.devices holds) can be redeemed once more.
+func (q *Queries) SeedDeviceRegistrationCode(ctx context.Context, arg SeedDeviceRegistrationCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, seedDeviceRegistrationCode, arg.CodeHash, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

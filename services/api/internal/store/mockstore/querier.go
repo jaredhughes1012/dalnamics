@@ -248,6 +248,21 @@ func (mr *MockQuerierMockRecorder) RotateSessionRefreshToken(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateSessionRefreshToken", reflect.TypeOf((*MockQuerier)(nil).RotateSessionRefreshToken), ctx, arg)
 }
 
+// SeedDeviceRegistrationCode mocks base method.
+func (m *MockQuerier) SeedDeviceRegistrationCode(ctx context.Context, arg devices.SeedDeviceRegistrationCodeParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SeedDeviceRegistrationCode", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SeedDeviceRegistrationCode indicates an expected call of SeedDeviceRegistrationCode.
+func (mr *MockQuerierMockRecorder) SeedDeviceRegistrationCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeedDeviceRegistrationCode", reflect.TypeOf((*MockQuerier)(nil).SeedDeviceRegistrationCode), ctx, arg)
+}
+
 // UseCLIAuthCode mocks base method.
 func (m *MockQuerier) UseCLIAuthCode(ctx context.Context, arg auth.UseCLIAuthCodeParams) (auth.CliAuthCode, error) {
 	m.ctrl.T.Helper()

@@ -32,6 +32,7 @@ services:
       JWT_SECRET: local-dev-secret-not-for-production-use
       DEBUG: "true"
       DEV_EMAILS: dev@dalnamics.local,e2e@dalnamics.local
+      DEV_REGISTRATION_CODE: "000000"
     ports:
       - "8080:8080"
       - "2345:2345" # delve

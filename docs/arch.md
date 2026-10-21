@@ -133,6 +133,7 @@ Services are configured from the environment through a typed `config` package (e
 | `JWT_SECRET` | api | Signs access tokens; at least 32 bytes |
 | `DEBUG` | api | Enables development-only behavior, such as dev users |
 | `DEV_EMAILS` | api | Dev user addresses, comma separated (read only when `DEBUG=true`) |
+| `DEV_REGISTRATION_CODE` | api | [Device registration code](devices.md#dev-registration-code) seeded for the first dev user; never expires (read only when `DEBUG=true`) |
 | `DEVICEMGR_ADDR` | devicemgr | Listen address |
 | `DEVICEMGR_TOKEN` | devicemgr | Shared service token callers present as a bearer token; at least 32 bytes |
 | `DEVICEMGR_MQTT_URL` | devicemgr | MQTT broker URL (`mqtt://host:port`) |

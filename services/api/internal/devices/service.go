@@ -77,6 +77,25 @@ func (s *Service) IssueRegistrationCode(ctx context.Context, userID uuid.UUID) (
 	return RegistrationCode{}, errors.New("create registration code: every attempt collided with an existing code")
 }
 
+// SeedDevRegistrationCode registers code to the user with email, for
+// development. The code never expires, and seeding it again lets it be redeemed
+// once more, so a dev device can register after every api start. It needn't
+// follow the code format; one outside the alphabet can never collide with an
+// issued code.
+func (s *Service) SeedDevRegistrationCode(ctx context.Context, email, code string) error {
+	n, err := s.q.SeedDeviceRegistrationCode(ctx, storedevices.SeedDeviceRegistrationCodeParams{
+		CodeHash: hashCode(code),
+		Email:    email,
+	})
+	if err != nil {
+		return fmt.Errorf("seed dev registration code: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("seed dev registration code: no user %s", email)
+	}
+	return nil
+}
+
 // List returns userID's devices, newest first.
 func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]Device, error) {
 	devices, err := s.q.ListDevicesByUser(ctx, userID)

@@ -66,6 +66,15 @@ sequenceDiagram
 - **Stored hashed:** only SHA-256 of the normalized code is stored, as with [cli login codes](auth.md#cli-login). A short, single-use, short-lived code needs no slow hash.
 - **One error:** unknown, expired, and already-used codes all get `invalid_code`, so a device learns nothing about which codes exist.
 
+### Dev registration code
+
+Registering a local device through studio on every fresh database slows down development. When the api runs with `DEBUG=true` and `DEV_REGISTRATION_CODE` is set, it seeds that code at startup for the first address in [`DEV_EMAILS`](auth.md#dev-users). Compose and `.env.example` set it to `000000`, registered to `dev@dalnamics.local`.
+
+- The code never expires. Its `expires_at` is `infinity`.
+- It is still single use, but each api start gives it a new id, so it can be redeemed once more after a restart.
+- It needn't follow the code format. `000000` is outside the alphabet, so it can never collide with an issued code.
+- Without `DEBUG=true`, the variable is ignored.
+
 ### Handshake
 
 The request goes to `devices/register/{client id}`, and the reply comes back on `devices/register/{client id}/reply`. Messages are JSON at QoS 1. The device subscribes to the reply topic before publishing, so it can't miss the reply. devicemgr reads requests through the shared subscription `$share/devicemgr/devices/register/+`, so each request is handled by exactly one devicemgr instance.

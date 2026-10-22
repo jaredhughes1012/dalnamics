@@ -98,7 +98,7 @@ The screws are M3, except into the ULN2003 and PCA9685, whose mounting holes are
 | Motors → chassis motor walls | 8 | M3 × 8. Check the gearbox's thread depth first: a screw that bottoms out can jam the gears. | Gearbox |
 | Uno → chassis standoffs | 4 | M3 × 6 | Insert |
 | ULN2003 → chassis standoffs | 4 | M2.5 × 6 | Insert |
-| Track lip strips → top plate | 4 | M3 × 8 | Insert |
+| Track lip strips → top plate | 4 | M3 × 6 | Insert |
 | Stepper ears → carriage motor plate | 2 | M3 × 5 | Insert |
 | Tower column flange → carriage deck | 4 | M3 × 8 | Insert |
 | PCA9685 → column bosses | 4 | M2.5 × 6 | Insert |
@@ -124,7 +124,7 @@ Use a soldering iron at about 220 °C for PLA or 240 °C for PETG. A conical ins
 A few holes take their insert from a particular side:
 - **PCA9685 bosses.** From the board's side, reaching through the door opening.
 - **Carriage motor plate.** From the stepper's side.
-- **Top plate.** From the entry pocket's floor.
+- **Top plate.** From the ledges either side of the slot in the entry pocket. The holes run out through the plate's underside.
 - **Gripper base.** Into the ends of its legs.
 
 The TB6612 boards, UBEC, and battery are held with double-sided tape, and the nose camera slides into grooves; none need screws. The top plate, table, hood lid, and column door snap or drop in place.
@@ -324,9 +324,11 @@ The order matters in a few places, marked **Order**: some screws can't be reache
    - Wire everything in the body: motors, power, the Uno to the TB6612s and ULN2003, and the UBEC to the ULN2003 and nose camera.
 4. **Top plate.** Snap it onto the chassis. Drop the table in.
 5. **Carriage.**
-   - Push the pinion onto the stepper's shaft.
-   - Slide the stepper in from the carriage's open inboard side and screw it to the motor plate by its ears.
-   - Lower the carriage into the entry pocket at the rear of the track and slide it forward. Drop the two lip strips into the pocket (one turned half a turn) and screw them down.
+   - **Order**: the pinion goes in before the stepper. It is wider than the motor plate's shaft hole, and once the shaft is through there is no room to slide the pinion on.
+   - Drop the pinion through the window in the carriage's base into the gap between the motor plate and the outboard runner, its flats lined up with the shaft hole. Hold it there.
+   - Slide the stepper in from the carriage's open inboard side, so its shaft passes through the motor plate into the pinion. Screw it to the motor plate by its ears.
+   - Lower the carriage into the entry pocket at the rear of the track and slide it forward. If the pinion lands on a rack tooth, turn it by hand until it drops into mesh.
+   - Drop the two lip strips onto the ledges either side of the slot in the pocket (one turned half a turn). Push each one out against the pocket wall while you screw it down, so its sloped face doesn't pinch the carriage's runners.
 6. **Ribbon.** Make up the ribbon. Feed its body end down the port, and its tower end up through the clamp tab's slot and the carriage deck.
 7. **Column.**
    - Screw the PCA9685 onto the bosses inside the column, headers facing the door.

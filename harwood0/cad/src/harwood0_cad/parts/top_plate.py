@@ -13,9 +13,9 @@ runners slide in its dovetail slot, which locates the carriage sideways and stop
 it lifting. A gear rack runs along the slot floor for the carriage's pinion.
 
 At the slot's rear end is an entry pocket with straight walls: lower the carriage
-in there and slide it forward, then drop the two lip strips into the pocket and
-screw them down (2 screws each, into inserts) to rebuild the dovetail. Both ends of the slot are
-closed, so they are the carriage's end stops.
+in there and slide it forward, then drop the two lip strips onto the ledges either side
+of the slot in the pocket and screw them down (2 screws each, into inserts) to rebuild the
+dovetail. Both ends of the slot are closed, so they are the carriage's end stops.
 
 Local frame: the global XY origin, with Z=0 at the plate underside.
 Printed flat, underside down; the dovetail's sloped walls print without supports.
@@ -29,8 +29,10 @@ from harwood0_cad import params as p
 from harwood0_cad.parts.body import body_plan
 from harwood0_cad.parts.fasteners import insert_hole
 from harwood0_cad.parts.snaps import snap_slots
-from harwood0_cad.shapes import box, cylinder
+from harwood0_cad.shapes import box
 from harwood0_cad.track_geometry import (
+    LEDGE_HALF_W,
+    LEDGE_Z,
     LIP_SCREW_INSET,
     LIP_SCREW_Y,
     POCKET_HALF_W,
@@ -102,15 +104,14 @@ def top_plate() -> Part:
     plate += box(p.TRACK_X, p.TRACK_Y, (PLATE_T - 0.1, TRACK_T))
     plate -= _dovetail(SLOT_X)
     plate -= box(
-        POCKET_X, (SLOT_Y - POCKET_HALF_W, SLOT_Y + POCKET_HALF_W), (SLOT_FLOOR_Z, TRACK_T + 1)
+        POCKET_X, (SLOT_Y - LEDGE_HALF_W, SLOT_Y + LEDGE_HALF_W), (SLOT_FLOOR_Z, TRACK_T + 1)
     )
+    plate -= box(POCKET_X, (SLOT_Y - POCKET_HALF_W, SLOT_Y + POCKET_HALF_W), (LEDGE_Z, TRACK_T + 1))
     plate += _rack(SLOT_X)
     for x in (POCKET_X[0] + LIP_SCREW_INSET, POCKET_X[1] - LIP_SCREW_INSET):
         for y in (SLOT_Y - LIP_SCREW_Y, SLOT_Y + LIP_SCREW_Y):
-            # Inserts pressed in from the pocket floor, on bosses under the plate.
-            boss_z = (SLOT_FLOOR_Z - p.STRUCTURAL_SCREW.insert_depth, 0.1)
-            plate += cylinder(p.STRUCTURAL_SCREW.insert_boss_d / 2, boss_z, at=(x, y))
-            plate -= insert_hole(p.STRUCTURAL_SCREW, SLOT_FLOOR_Z, -1, (x, y))
+            # Inserts pressed in from the ledges, in holes running out through the underside.
+            plate -= insert_hole(p.STRUCTURAL_SCREW, LEDGE_Z, -1, (x, y), depth=LEDGE_Z + 1)
 
     plate -= snap_slots()
 

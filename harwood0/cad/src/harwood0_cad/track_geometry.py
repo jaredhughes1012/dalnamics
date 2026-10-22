@@ -20,11 +20,15 @@ SLOT_END_WALL = 8.0  # solid strip left at each end of the slot
 ENTRY_L = p.CARRIAGE_L + 2.0
 # Wide enough that the lip strips have room round their screws' clearance holes and
 # counterbores at M3.
-POCKET_HALF_W = 17.5
-# Lip strip screws, either side of the slot centreline: as far out as the top plate's insert
-# bosses allow, hanging beside the motor wall, for plastic between the hole and the
-# dovetail's slope at the strip's foot.
-LIP_SCREW_Y = 13.3
+POCKET_HALF_W = 18.5
+# The pocket floor beside the slot is a ledge, raised above the slot floor so the plate is
+# thick enough there for the lip strips' inserts. The ledge's inner edges are straight down
+# from the slot floor's edges, so the carriage's runners still drop past them.
+LEDGE_Z = SLOT_FLOOR_Z + 2.0
+LEDGE_HALF_W = SLOT_BOTTOM_W / 2
+# Lip strip screws, either side of the slot centreline: far enough out for plastic between
+# each insert and the ledge's inner edge.
+LIP_SCREW_Y = 14.4
 LIP_SCREW_INSET = 8.0  # from each end of the pocket
 
 # Rack: 20 degree pressure angle, teeth standing on the slot floor along its centreline.

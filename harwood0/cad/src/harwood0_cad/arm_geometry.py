@@ -34,7 +34,8 @@ CARRIAGE_SCREWS = tuple((x, y) for x in (-21.0, 21.0) for y in (-16.0, 22.0))
 # Ribbon clamp: a tab off the carriage's rear end wall, over the cable channel, holding the
 # ribbon's moving end. The ribbon comes down from inside the carriage through the tab's slot
 # (which sits inboard of the end wall), then runs under the tab towards the curl.
-RIBBON_TAB_X = (-p.CARRIAGE_L / 2 - 10.0, -p.CARRIAGE_L / 2 + 14.0)
+# The tab stops short of the stepper's path as it slides in under the deck.
+RIBBON_TAB_X = (-p.CARRIAGE_L / 2 - 10.0, -p.CARRIAGE_L / 2 + 12.5)
 RIBBON_TAB_Y = (CARRIAGE_Y[1] + 0.3, p.CABLE_CHANNEL_Y[1] - SLOT_Y)
 RIBBON_TAB_Z = (6.0, 9.0)
 RIBBON_SLOT = (
@@ -46,7 +47,10 @@ RIBBON_SLOT = (
 PINION_TEETH = 18
 PINION_MODULE = RACK_MODULE
 PINION_PITCH_R = PINION_MODULE * PINION_TEETH / 2
-PINION_Z = RACK_PITCH_LOCAL_Z + PINION_PITCH_R  # pinion and stepper shaft axis
+# The pinion's axis sits this much further from the rack than the pitch lines meeting, for
+# backlash (about 0.73x this): printed teeth come out fat, and a mesh with none binds.
+PINION_MESH_GAP = 0.3
+PINION_Z = RACK_PITCH_LOCAL_Z + PINION_PITCH_R + PINION_MESH_GAP  # pinion and stepper shaft axis
 PINION_Y = (-3.0, 3.0)  # centred on the rack
 STEPPER_FLANGE_Y = (
     PINION_Y[0] + BYJ_BOSS_H + BYJ_SHAFT_L

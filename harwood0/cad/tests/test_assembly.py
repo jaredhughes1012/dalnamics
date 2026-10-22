@@ -6,10 +6,13 @@ part, a placement, or a pose is wrong.
 """
 
 import itertools
+import math
 
 import pytest
+from build123d import Pos, Rot
 
 from harwood0_cad.arm import (
+    CARRIAGE_RANGE,
     ELBOW_RANGE,
     GROUND_TARGET_X,
     GROUND_TARGET_Z,
@@ -19,15 +22,19 @@ from harwood0_cad.arm import (
     Pose,
     tip,
 )
+from harwood0_cad.arm_geometry import PINION_PITCH_R, PINION_TEETH, PINION_Y, PINION_Z
 from harwood0_cad.assembly import robot
 from harwood0_cad.hardware import HARDWARE
+from harwood0_cad.parts import pinion, top_plate
 from harwood0_cad.stability import MIN_TIP_MARGIN, tipping_margin
+from harwood0_cad.track_geometry import SLOT_Y, TRACK_T
 
 # Overlap volume (mm^3) below which a contact counts as face-to-face.
 TOLERANCE = 0.5
 
 # Pairs that are meant to engage: the pinion's teeth mesh with the rack in the top plate.
 MESHING = {frozenset({"pinion", "top_plate"})}
+MIN_BACKLASH = 0.15  # mm at the pitch line, between the pinion and the rack
 
 
 def _bbox_overlap(a, b) -> bool:
@@ -86,6 +93,24 @@ ARM = {
     "gripper_jaw_front",
     "gripper_jaw_rear",
 }
+
+
+@pytest.mark.parametrize("carriage_x", [CARRIAGE_RANGE[0], 0.0, 40.0])
+def test_pinion_meshes_with_backlash(carriage_x):
+    """Somewhere in each tooth's turn the pinion clears the rack over a range of angles, not
+    at a single one: the play printed teeth need to run without binding."""
+    plate = top_plate()
+    gear = pinion()
+    tooth = 360 / PINION_TEETH
+    steps = 80
+    clear = 0
+    for i in range(steps):
+        turn = Rot(0, 0, tooth * i / steps)
+        placed = Pos(carriage_x, SLOT_Y + PINION_Y[1], TRACK_T + PINION_Z) * Rot(90, 0, 0) * turn
+        if (placed * gear & plate).volume < 1e-4:
+            clear += 1
+    backlash = math.radians(tooth * clear / steps) * PINION_PITCH_R
+    assert backlash >= MIN_BACKLASH, f"only {backlash:.2f} mm of backlash"
 
 
 @pytest.mark.parametrize("shoulder", [SHOULDER_RANGE[0], 0.0, SHOULDER_RANGE[1]])

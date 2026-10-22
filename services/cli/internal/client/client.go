@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"dalnamics/services/cli/internal/client/apigen"
 	"dalnamics/services/cli/internal/credentials"
 )
@@ -62,6 +64,13 @@ func (e *APIError) Error() string {
 func IsUnauthorized(err error) bool {
 	var apiErr *APIError
 	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
+}
+
+// IsNotFound reports whether err is the api's not_found error. A 404 without
+// that code, such as from a wrong --api-url, isn't one.
+func IsNotFound(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound && apiErr.Code == "not_found"
 }
 
 // decoded returns v, or an error if a 2xx response had no JSON body.
@@ -131,6 +140,18 @@ func (c *Client) ListDevices(ctx context.Context) ([]apigen.Device, error) {
 	}
 	if err := checkStatus(res.HTTPResponse, res.Body); err != nil {
 		return nil, err
+	}
+	return decoded(res.HTTPResponse, res.JSON200)
+}
+
+// GetDevice returns the logged-in user's device with id.
+func (c *Client) GetDevice(ctx context.Context, id uuid.UUID) (apigen.Device, error) {
+	res, err := c.api.GetDeviceWithResponse(ctx, id)
+	if err != nil {
+		return apigen.Device{}, err
+	}
+	if err := checkStatus(res.HTTPResponse, res.Body); err != nil {
+		return apigen.Device{}, err
 	}
 	return decoded(res.HTTPResponse, res.JSON200)
 }

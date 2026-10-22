@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { useAuthStore } from '@/stores/auth'
+import { useDeviceStore } from '@/stores/device'
 import { useDevicesStore } from '@/stores/devices'
 import { useHealthStore } from '@/stores/health'
 import { useThemeStore } from '@/stores/theme'
@@ -10,6 +11,7 @@ import { useThemeStore } from '@/stores/theme'
 configure({ asyncUtilTimeout: 3000 })
 
 const initialAuth = useAuthStore.getState()
+const initialDevice = useDeviceStore.getState()
 const initialDevices = useDevicesStore.getState()
 const initialHealth = useHealthStore.getState()
 const initialTheme = useThemeStore.getState()
@@ -17,6 +19,7 @@ const initialTheme = useThemeStore.getState()
 beforeEach(() => {
   localStorage.clear()
   useAuthStore.setState(initialAuth, true)
+  useDeviceStore.setState(initialDevice, true)
   useDevicesStore.setState(initialDevices, true)
   useHealthStore.setState(initialHealth, true)
   useThemeStore.setState(initialTheme, true)

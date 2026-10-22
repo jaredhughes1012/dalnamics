@@ -6,11 +6,11 @@ Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configur
 
 | Where | Code |
 |---|---|
-| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing with connectivity), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql) |
+| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing and getting with connectivity), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql) |
 | devicemgr | [`internal/devices`](../services/devicemgr/internal/devices/) (redemption, broker rules, [`presence.go`](../services/devicemgr/internal/devices/presence.go)), [`internal/mqtt`](../services/devicemgr/internal/mqtt/) (routing, handshake, [`presence.go`](../services/devicemgr/internal/mqtt/presence.go)), [`server/mqtt_auth_handlers.go`](../services/devicemgr/internal/server/mqtt_auth_handlers.go), [`queries/devices.sql`](../services/devicemgr/internal/store/queries/devices.sql) |
 | Broker | [`mosquitto/mosquitto.conf`](../services/devicemgr/mosquitto/mosquitto.conf) |
-| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`components/device-status.tsx`](../studio/src/components/device-status.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts) |
-| cli | [`commands/devices.go`](../services/cli/internal/commands/devices.go) |
+| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx) (list), [`routes/_authed/_app/devices_.$deviceId.tsx`](../studio/src/routes/_authed/_app/devices_.$deviceId.tsx) (details), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`components/device-status.tsx`](../studio/src/components/device-status.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts), [`stores/device.ts`](../studio/src/stores/device.ts), [`lib/use-refresh.ts`](../studio/src/lib/use-refresh.ts) |
+| cli | [`commands/devices.go`](../services/cli/internal/commands/devices.go) (`devices register`, `list`, `get`) |
 | harwood0 | [`harwood0_api/platform.py`](../harwood0/api/src/harwood0_api/platform.py) |
 
 ## Device model
@@ -105,9 +105,15 @@ The HTTP backend can't send headers, so the three `/mqtt/*` operations take no [
 
 Everything else is denied, including wildcard subscriptions that reach outside a device's own prefix (e.g. `devices/+/telemetry`).
 
+## Viewing devices
+
+Users see their devices through the api's `GET /devices` and `GET /devices/{id}` ([api spec](../services/api/openapi.yaml)), which return only the caller's devices. Studio's Devices page lists them, and clicking a device's row or its name opens its page at `/devices/<id>`, which shows the device's name with its [status dot](#connectivity), and a table of its other public fields: ID, type, last seen, and registration time. The cli has `devices list` and `devices get <id>`.
+
+A device ID is also the device's MQTT username, so the api never confirms which IDs exist. `GET /devices/{id}` matches on both the ID and the caller, and answers another user's device exactly as it answers an unknown ID: 404 `not_found` ([error codes](arch.md#error-codes)). Studio shows both as "Device not found" and stops refreshing the page, and `cli devices get` prints `device <id> not found`. Neither response includes the secret hash or the registration code ID.
+
 ## Connectivity
 
-Users want to know which of their devices are reachable. A device counts as online while it keeps sending heartbeats, and goes offline once it has missed them for a threshold. Each heartbeat records an expiry, and the device is online until that expiry passes. No process has to mark it offline. Studio shows a green or gray dot beside each device's name, and `cli devices list` has a STATUS column.
+Users want to know which of their devices are reachable. A device counts as online while it keeps sending heartbeats, and goes offline once it has missed them for a threshold. Each heartbeat records an expiry, and the device is online until that expiry passes. No process has to mark it offline. Studio shows a green or gray dot beside each device's name, on the list and on the device's page, and `cli devices list` and `devices get` show a STATUS.
 
 ```mermaid
 sequenceDiagram
@@ -121,7 +127,7 @@ sequenceDiagram
     B->>DM: deliver (shared subscription devices/+/heartbeat)
     DM->>DM: skip if this instance wrote the device within the throttle window
     DM->>DB: upsert device_connectivity last_seen_at = now(), online_until = now() + DEVICEMGR_OFFLINE_AFTER
-    U->>API: GET /devices (studio polls every VITE_DEVICES_REFRESH_MS)
+    U->>API: GET /devices or /devices/{id} (studio polls every VITE_DEVICES_REFRESH_MS)
     API->>DB: devicemgr.devices LEFT JOIN device_connectivity
     API-->>U: online (online_until > now()), last_seen_at per device
 ```
@@ -131,4 +137,4 @@ sequenceDiagram
 - **Offline by expiry:** each heartbeat sets `online_until` to `DEVICEMGR_OFFLINE_AFTER` past the database clock. The api compares it with `now()` when it reads, so a device goes offline on time even while devicemgr is down, and nothing has to sweep or catch up after an outage. Clock skew between instances doesn't matter, because only the database clock is used.
 - **Throttled writes:** presence is a hot, narrow row, so it lives apart from `devicemgr.devices` and never bumps that table's `updated_at`. Each devicemgr instance remembers, in memory, when it last wrote each device. It writes at most once per throttle window of `DEVICEMGR_OFFLINE_AFTER / 6` (15 s by default), and it reserves a write before making it, so a burst of messages from one device writes once. If nothing was written, the entry is dropped so the next heartbeat retries. That covers a failed write, an unknown device, and a row another instance wrote within the window. The upsert also skips a row written within the window, so several instances add at most a few redundant writes. No shared cache is needed. Entries older than the window are pruned once per `DEVICEMGR_OFFLINE_AFTER`.
 - **Heartbeat interval:** keep a device's heartbeat interval at most `DEVICEMGR_OFFLINE_AFTER / 3` (30 s by default). The interval is then twice the throttle window, so no heartbeat is throttled away, and a device stays online through two lost heartbeats.
-- **Freshness in studio:** the Devices page refetches the list [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) after the previous fetch finishes: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page. A response that arrives after a newer one is dropped. A hidden tab skips refreshes and refreshes as soon as it's shown again. While refreshes fail, each device's dot shows as unknown next to the error, so an old status never passes for a current one.
+- **Freshness in studio:** the Devices page refetches the list, and a device's page refetches that device, [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) after the previous fetch finishes: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page. A response that arrives after a newer one is dropped. A hidden tab skips refreshes and refreshes as soon as it's shown again. While refreshes fail, each dot shows as unknown next to the error until a refresh succeeds, and a device's page starts empty each time it opens, so an old status never passes for a current one.

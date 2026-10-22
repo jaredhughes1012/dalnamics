@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -380,6 +381,13 @@ type ClientInterface interface {
 	// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
 	CreateDeviceRegistrationCode(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetDevice Get one of the authenticated user's devices
+	//
+	// Another user's device and an unknown ID both return 404, so the response never reveals whether a device ID exists.
+	//
+	// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
+	GetDevice(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetHealth Health check
 	//
 	// Corresponds with GET /healthz (the `GetHealth` operationId).
@@ -655,6 +663,23 @@ func (c *Client) ListDevices(ctx context.Context, reqEditors ...RequestEditorFn)
 // Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
 func (c *Client) CreateDeviceRegistrationCode(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateDeviceRegistrationCodeRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetDevice Get one of the authenticated user's devices
+//
+// Another user's device and an unknown ID both return 404, so the response never reveals whether a device ID exists.
+//
+// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
+func (c *Client) GetDevice(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDeviceRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1043,6 +1068,40 @@ func NewCreateDeviceRegistrationCodeRequest(server string) (*http.Request, error
 	return req, nil
 }
 
+// NewGetDeviceRequest constructs an http.Request for the GetDevice method
+func NewGetDeviceRequest(server string, id openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/devices/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetHealthRequest constructs an http.Request for the GetHealth method
 func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -1262,6 +1321,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /devices/registration-codes (the `CreateDeviceRegistrationCode` operationId).
 	CreateDeviceRegistrationCodeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CreateDeviceRegistrationCodeResponse, error)
+
+	// GetDeviceWithResponse Get one of the authenticated user's devices
+	//
+	// Another user's device and an unknown ID both return 404, so the response never reveals whether a device ID exists.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
+	GetDeviceWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetDeviceResponse, error)
 
 	// GetHealthWithResponse Health check
 	//
@@ -1779,6 +1847,68 @@ func (r CreateDeviceRegistrationCodeResponse) ContentType() string {
 	return ""
 }
 
+type GetDeviceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Device
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetDeviceResponse) GetJSON200() *Device {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetDeviceResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetDeviceResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetDeviceResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetDeviceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDeviceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDeviceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDeviceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2084,6 +2214,21 @@ func (c *ClientWithResponses) CreateDeviceRegistrationCodeWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseCreateDeviceRegistrationCodeResponse(rsp)
+}
+
+// GetDeviceWithResponse Get one of the authenticated user's devices
+//
+// Another user's device and an unknown ID both return 404, so the response never reveals whether a device ID exists.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
+func (c *ClientWithResponses) GetDeviceWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetDeviceResponse, error) {
+	rsp, err := c.GetDevice(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDeviceResponse(rsp)
 }
 
 // GetHealthWithResponse Health check
@@ -2460,6 +2605,53 @@ func ParseCreateDeviceRegistrationCodeResponse(rsp *http.Response) (*CreateDevic
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDeviceResponse parses an HTTP response from a GetDeviceWithResponse call
+func ParseGetDeviceResponse(rsp *http.Response) (*GetDeviceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDeviceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Device
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

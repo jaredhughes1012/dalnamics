@@ -22,3 +22,11 @@ FROM devicemgr.devices d
 LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
 WHERE d.user_id = @user_id
 ORDER BY d.created_at DESC, d.id;
+
+-- name: GetDeviceForUser :one
+-- Matches only the user's own devices, so another user's device looks unknown.
+SELECT d.id, d.type, d.name, d.created_at,
+       coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
+FROM devicemgr.devices d
+LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
+WHERE d.id = @id AND d.user_id = @user_id;

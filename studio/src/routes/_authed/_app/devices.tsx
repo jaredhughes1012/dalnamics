@@ -1,48 +1,40 @@
-import { useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
+import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { RegisterDeviceDialog } from '@/components/register-device-dialog'
-import { devicesRefreshMs } from '@/lib/config'
+import { dateTime } from '@/lib/format'
+import { useRefresh } from '@/lib/use-refresh'
 import { useDevicesStore } from '@/stores/devices'
 
 export const Route = createFileRoute('/_authed/_app/devices')({
   component: Devices,
 })
 
-const registeredAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-
-/** How often the page refreshes the list, so each device's status stays current. */
-const REFRESH_MS = devicesRefreshMs()
-
 function Devices() {
   const { status, devices, error, load } = useDevicesStore()
   const [registering, setRegistering] = useState(false)
 
-  // Each refresh is scheduled after the previous one finishes, so slow
-  // requests never pile up. A hidden tab skips refreshes and catches up as
-  // soon as it's shown again.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let stopped = false
-    const refresh = async () => {
-      if (!document.hidden) await load()
-      if (!stopped) timer = setTimeout(() => void refresh(), REFRESH_MS)
+  const navigate = useNavigate()
+  const router = useRouter()
+  // Refreshing keeps each device's status current.
+  useRefresh(load)
+
+  // The name link handles its own clicks; the rest of the row is a larger
+  // target for mouse users, and acts like the link: a modifier or middle click
+  // opens a new tab, and selecting text doesn't navigate.
+  function openDevice(e: React.MouseEvent, deviceId: string) {
+    if ((e.target as Element).closest('a') || window.getSelection()?.toString()) return
+    if (e.button === 1 || (e.button === 0 && (e.metaKey || e.ctrlKey || e.shiftKey))) {
+      const { href } = router.buildLocation({ to: '/devices/$deviceId', params: { deviceId } })
+      window.open(href, '_blank', 'noopener')
+      return
     }
-    const onVisibilityChange = () => {
-      if (!document.hidden) void load()
-    }
-    void refresh()
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [load])
+    if (e.button === 0) void navigate({ to: '/devices/$deviceId', params: { deviceId } })
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,15 +67,22 @@ function Devices() {
               </thead>
               <tbody>
                 {devices.map((d) => (
-                  <tr key={d.id} className="border-b last:border-0">
+                  <tr
+                    key={d.id}
+                    className="cursor-pointer border-b last:border-0 hover:bg-muted/50"
+                    onClick={(e) => openDevice(e, d.id)}
+                    onAuxClick={(e) => openDevice(e, d.id)}
+                  >
                     <td className="px-6 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <DeviceStatus device={d} stale={status === 'error'} />
-                        {d.name}
+                        <Link to="/devices/$deviceId" params={{ deviceId: d.id }} className="hover:underline">
+                          {d.name}
+                        </Link>
                       </span>
                     </td>
                     <td className="px-6 py-3">{d.type}</td>
-                    <td className="px-6 py-3 text-muted-foreground">{registeredAt.format(new Date(d.created_at))}</td>
+                    <td className="px-6 py-3 text-muted-foreground">{dateTime.format(new Date(d.created_at))}</td>
                   </tr>
                 ))}
               </tbody>

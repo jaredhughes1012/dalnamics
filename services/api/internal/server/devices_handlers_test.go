@@ -82,3 +82,53 @@ func TestListDevicesEmpty(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, []apigen.Device{}, decode[[]apigen.Device](t, res), "an empty list is [], not null")
 }
+
+func TestGetDevice(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
+	token := ts.login(t, user)
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	seen := time.Date(2026, 1, 3, 4, 5, 6, 0, time.UTC)
+	id := uuid.New()
+	ts.q.EXPECT().GetDeviceForUser(gomock.Any(), storedevices.GetDeviceForUserParams{ID: id, UserID: user.ID}).
+		Return(storedevices.GetDeviceForUserRow{ID: id, Type: "harwood0", Name: "bench-rover", CreatedAt: created, Online: true, LastSeenAt: &seen}, nil)
+
+	res := ts.do(t, http.MethodGet, "/devices/"+id.String(), "", token)
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, apigen.Device{Id: id, Type: "harwood0", Name: "bench-rover", CreatedAt: created, Online: true, LastSeenAt: &seen}, decode[apigen.Device](t, res))
+}
+
+func TestGetDeviceNotFound(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
+	token := ts.login(t, user)
+	// Another user's device and an unknown ID both match no rows for the caller.
+	ts.q.EXPECT().GetDeviceForUser(gomock.Any(), gomock.Cond(func(p storedevices.GetDeviceForUserParams) bool {
+		return p.UserID == user.ID
+	})).Return(storedevices.GetDeviceForUserRow{}, store.ErrNoRows)
+
+	res := ts.do(t, http.MethodGet, "/devices/"+uuid.NewString(), "", token)
+
+	require.Equal(t, http.StatusNotFound, res.StatusCode)
+	assert.Equal(t, apigen.Error{Code: "not_found", Message: "device not found"}, decode[apigen.Error](t, res))
+}
+
+func TestGetDeviceInvalidID(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	token := ts.login(t, storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"})
+
+	res := ts.do(t, http.MethodGet, "/devices/not-a-uuid", "", token)
+
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	assert.Equal(t, "invalid_request", decode[apigen.Error](t, res).Code)
+}
+
+func TestGetDeviceUnauthenticated(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+
+	res := ts.do(t, http.MethodGet, "/devices/"+uuid.NewString(), "", "")
+
+	require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	assert.Equal(t, "unauthenticated", decode[apigen.Error](t, res).Code)
+}

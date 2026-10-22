@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { api, ApiError, unwrap, type Device } from '@/lib/api/client'
 import { errorMessage } from '@/lib/errors'
 import { newestWins, reloadStatus, type LoadStatus } from '@/lib/loads'
+import { useDevicesStore } from '@/stores/devices'
 
 type DeviceState = {
   /** 'error' while the latest load failed; device then still holds the last one loaded. */
@@ -19,6 +20,13 @@ type DeviceState = {
    * after a newer one, or for an ID no longer shown, is dropped.
    */
   load: (id: string) => Promise<void>
+  /**
+   * Sets the user's name for the device being shown, and shows the device the
+   * api returns. A load still in flight from before the rename is dropped, so
+   * it can't bring back the old name. Also reloads the devices list, so it
+   * shows the new name too. Rejects with the api's error.
+   */
+  rename: (name: string) => Promise<void>
   /**
    * Forgets the device, so a page opened later never shows it from before.
    * Responses still in flight are dropped.
@@ -46,6 +54,14 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
           : { status: 'error', error: errorMessage(err) }
     }
     if (get().id === id && loads.claim(seq)) set(next)
+  },
+  rename: async (name) => {
+    const id = get().id
+    if (!id) throw new Error('No device to rename')
+    const device = unwrap(await api.PATCH('/devices/{id}', { params: { path: { id } }, body: { name } }))
+    // Takes a turn after every load started so far, so their results are dropped.
+    if (get().id === id && loads.claim(loads.start())) set({ device })
+    void useDevicesStore.getState().load()
   },
   reset: () => set(initial),
 }))

@@ -22,6 +22,14 @@ type CliAuthCode struct {
 	CreatedAt     time.Time
 }
 
+// User-facing display data for devicemgr's devices, owned by the api and overlaid on devicemgr.devices when read. A null field falls back to devicemgr's value; devicemgr.devices.name keeps the name the device registered with. Rows are created on the first change, so a device may have none.
+type DeviceProfile struct {
+	DeviceID  uuid.UUID
+	Name      pgtype.Text
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // Short-lived, single-use codes that register a device to the user who requested them. devicemgr reads a code when a device redeems it and records the redemption in devicemgr.devices.registration_code_id, which is unique, so the api never marks codes used. Only the SHA-256 of the normalized code is stored.
 type DeviceRegistrationCode struct {
 	ID        uuid.UUID

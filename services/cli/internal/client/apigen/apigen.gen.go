@@ -112,6 +112,14 @@ type DeviceRegistrationCode struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// DeviceUpdate defines model for DeviceUpdate.
+type DeviceUpdate struct {
+	// Name The user's name for the device. It is trimmed, and must then be 1–100 characters, so a whitespace-only name is rejected.
+	//
+	// Example: Bench rover
+	Name string `json:"name"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine-readable error code
@@ -192,6 +200,9 @@ type RefreshJSONRequestBody = RefreshRequest
 
 // SignupJSONRequestBody defines body for Signup for application/json ContentType.
 type SignupJSONRequestBody = SignupRequest
+
+// UpdateDeviceJSONRequestBody defines body for UpdateDevice for application/json ContentType.
+type UpdateDeviceJSONRequestBody = DeviceUpdate
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -387,6 +398,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
 	GetDevice(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDeviceWithBody Update one of the authenticated user's devices
+	//
+	// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+	UpdateDeviceWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDevice Update one of the authenticated user's devices
+	//
+	// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+	UpdateDevice(ctx context.Context, id openapi_types.UUID, body UpdateDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealth Health check
 	//
@@ -680,6 +709,44 @@ func (c *Client) CreateDeviceRegistrationCode(ctx context.Context, reqEditors ..
 // Corresponds with GET /devices/{id} (the `GetDevice` operationId).
 func (c *Client) GetDevice(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDeviceRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateDeviceWithBody Update one of the authenticated user's devices
+//
+// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+func (c *Client) UpdateDeviceWithBody(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDeviceRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateDevice Update one of the authenticated user's devices
+//
+// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+func (c *Client) UpdateDevice(ctx context.Context, id openapi_types.UUID, body UpdateDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDeviceRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1102,6 +1169,53 @@ func NewGetDeviceRequest(server string, id openapi_types.UUID) (*http.Request, e
 	return req, nil
 }
 
+// NewUpdateDeviceRequest calls the generic UpdateDevice builder with application/json body
+func NewUpdateDeviceRequest(server string, id openapi_types.UUID, body UpdateDeviceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDeviceRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewUpdateDeviceRequestWithBody constructs an http.Request for the UpdateDevice method, with any body, and a specified content type
+func NewUpdateDeviceRequestWithBody(server string, id openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/devices/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetHealthRequest constructs an http.Request for the GetHealth method
 func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -1330,6 +1444,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /devices/{id} (the `GetDevice` operationId).
 	GetDeviceWithResponse(ctx context.Context, id openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetDeviceResponse, error)
+
+	// UpdateDeviceWithBodyWithResponse Update one of the authenticated user's devices
+	//
+	// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+	UpdateDeviceWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDeviceResponse, error)
+
+	// UpdateDeviceWithResponse Update one of the authenticated user's devices
+	//
+	// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+	UpdateDeviceWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDeviceResponse, error)
 
 	// GetHealthWithResponse Health check
 	//
@@ -1909,6 +2041,68 @@ func (r GetDeviceResponse) ContentType() string {
 	return ""
 }
 
+type UpdateDeviceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Device
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateDeviceResponse) GetJSON200() *Device {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateDeviceResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateDeviceResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateDeviceResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateDeviceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDeviceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDeviceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateDeviceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2229,6 +2423,36 @@ func (c *ClientWithResponses) GetDeviceWithResponse(ctx context.Context, id open
 		return nil, err
 	}
 	return ParseGetDeviceResponse(rsp)
+}
+
+// UpdateDeviceWithBodyWithResponse Update one of the authenticated user's devices
+//
+// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+func (c *ClientWithResponses) UpdateDeviceWithBodyWithResponse(ctx context.Context, id openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDeviceResponse, error) {
+	rsp, err := c.UpdateDeviceWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDeviceResponse(rsp)
+}
+
+// UpdateDeviceWithResponse Update one of the authenticated user's devices
+//
+// Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /devices/{id} (the `UpdateDevice` operationId).
+func (c *ClientWithResponses) UpdateDeviceWithResponse(ctx context.Context, id openapi_types.UUID, body UpdateDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDeviceResponse, error) {
+	rsp, err := c.UpdateDevice(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDeviceResponse(rsp)
 }
 
 // GetHealthWithResponse Health check
@@ -2620,6 +2844,53 @@ func ParseGetDeviceResponse(rsp *http.Response) (*GetDeviceResponse, error) {
 	}
 
 	response := &GetDeviceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Device
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDeviceResponse parses an HTTP response from a UpdateDeviceWithResponse call
+func ParseUpdateDeviceResponse(rsp *http.Response) (*UpdateDeviceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDeviceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

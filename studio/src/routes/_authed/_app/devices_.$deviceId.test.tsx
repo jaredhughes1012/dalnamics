@@ -192,3 +192,151 @@ describe('device details', () => {
     expect(router.state.location.pathname).toBe('/devices')
   })
 })
+
+describe('renaming a device', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Signs in and opens the page, with PATCH answered by rename (by default, the device with the sent name). */
+  async function openPage(rename?: (request: Request) => Response | Promise<Response>) {
+    await signIn()
+    let device = bench
+    const spy = mockApi({
+      [`GET ${path}`]: () => Response.json(device),
+      'GET /devices': () => Response.json([device]),
+      [`PATCH ${path}`]:
+        rename ??
+        (async (request) => {
+          device = { ...bench, name: (await request.json()).name }
+          return Response.json(device)
+        }),
+    })
+    renderRoute(path)
+    await screen.findByRole('heading', { name: 'bench-rover' })
+    return spy
+  }
+
+  const patches = (spy: ReturnType<typeof mockApi>) => requestsOf(spy).filter((r) => r === `PATCH ${path}`)
+
+  it('edits the name in place with the current name selected', async () => {
+    const user = userEvent.setup()
+    await openPage()
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Device name' })
+    expect(input).toHaveValue('bench-rover')
+    expect(input).toHaveFocus()
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'bench-rover'.length])
+    expect(screen.queryByRole('heading', { name: 'bench-rover' })).not.toBeInTheDocument()
+  })
+
+  it('saves the trimmed name on Enter and reloads the devices list', async () => {
+    const user = userEvent.setup()
+    const sent: unknown[] = []
+    const spy = await openPage(async (request) => {
+      const body = await request.json()
+      sent.push(body)
+      return Response.json({ ...bench, name: body.name })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Device name' }))
+    await user.keyboard('  Bench rover  {Enter}')
+
+    expect(await screen.findByRole('heading', { name: 'Bench rover' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Device name' })).not.toBeInTheDocument()
+    expect(sent).toEqual([{ name: 'Bench rover' }])
+    await vi.waitFor(() => expect(requestsOf(spy)).toContain('GET /devices'))
+  })
+
+  it.each([
+    ['Escape', async (user: ReturnType<typeof userEvent.setup>) => user.keyboard('{Escape}')],
+    ['clicking away', async (user: ReturnType<typeof userEvent.setup>) => user.click(document.body)],
+  ])('cancels on %s', async (_, leave) => {
+    const user = userEvent.setup()
+    const spy = await openPage()
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.type(screen.getByRole('textbox', { name: 'Device name' }), '-renamed')
+    await leave(user)
+
+    expect(screen.getByRole('heading', { name: 'bench-rover' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Device name' })).not.toBeInTheDocument()
+    expect(patches(spy)).toEqual([])
+  })
+
+  it.each([
+    ['a blank name', '   ', 'Name is required'],
+    ['a name over 100 characters', 'a'.repeat(101), 'Name must be at most 100 characters'],
+  ])('rejects %s without saving', async (_, name, message) => {
+    const user = userEvent.setup()
+    const spy = await openPage()
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    const input = screen.getByRole('textbox', { name: 'Device name' })
+    await user.clear(input)
+    await user.type(input, `${name}{Enter}`)
+
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(patches(spy)).toEqual([])
+  })
+
+  it('exits without saving when the name is unchanged', async () => {
+    const user = userEvent.setup()
+    const spy = await openPage()
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.keyboard(' bench-rover {Enter}')
+
+    expect(screen.getByRole('heading', { name: 'bench-rover' })).toBeInTheDocument()
+    expect(patches(spy)).toEqual([])
+  })
+
+  it('stays in edit mode and shows the error when saving fails', async () => {
+    const user = userEvent.setup()
+    await openPage(() => apiError(500, 'internal', 'internal server error'))
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.keyboard('Bench rover{Enter}')
+
+    expect(await screen.findByText('internal server error')).toBeInTheDocument()
+    const input = screen.getByRole('textbox', { name: 'Device name' })
+    expect(input).toHaveValue('Bench rover')
+    expect(input).toBeEnabled()
+    expect(screen.queryByRole('heading', { name: 'Bench rover' })).not.toBeInTheDocument()
+  })
+
+  it('disables the input while saving, without cancelling', async () => {
+    const user = userEvent.setup()
+    let respond!: (r: Response) => void
+    await openPage(() => new Promise<Response>((resolve) => (respond = resolve)))
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.keyboard('Bench rover{Enter}')
+
+    const input = screen.getByRole('textbox', { name: 'Device name' })
+    await vi.waitFor(() => expect(input).toBeDisabled())
+    await act(async () => respond(Response.json({ ...bench, name: 'Bench rover' })))
+    expect(await screen.findByRole('heading', { name: 'Bench rover' })).toBeInTheDocument()
+  })
+
+  it('keeps the draft when the device refreshes during an edit', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const spy = await openPage()
+    const loads = () => requestsOf(spy).filter((r) => r === `GET ${path}`).length
+
+    await user.click(screen.getByRole('button', { name: 'Rename device' }))
+    await user.keyboard('Bench rover')
+    const before = loads()
+    await advance(15_000)
+
+    expect(loads()).toBeGreaterThan(before)
+    expect(screen.getByRole('textbox', { name: 'Device name' })).toHaveValue('Bench rover')
+  })
+})
+

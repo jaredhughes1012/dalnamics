@@ -41,9 +41,12 @@ func (s *Server) handleRequestError(w http.ResponseWriter, _ *http.Request, err 
 
 func errorResponse(err error) (int, apigen.Error) {
 	var verr *auth.ValidationError
+	var dverr *devices.ValidationError
 	switch {
 	case errors.As(err, &verr):
 		return http.StatusBadRequest, apigen.Error{Code: codeInvalidRequest, Message: verr.Error()}
+	case errors.As(err, &dverr):
+		return http.StatusBadRequest, apigen.Error{Code: codeInvalidRequest, Message: dverr.Error()}
 	case errors.Is(err, auth.ErrEmailTaken):
 		return http.StatusConflict, apigen.Error{Code: codeEmailTaken, Message: err.Error()}
 	case errors.Is(err, auth.ErrInvalidCredentials):

@@ -168,6 +168,80 @@ test.describe('details', () => {
   })
 })
 
+test.describe('renaming', () => {
+  /** Opens edit mode on the details page's title, the way a mouse user does. */
+  async function startRename(page: Page, name: string) {
+    await page.getByRole('heading', { name, exact: true }).hover()
+    await page.getByRole('button', { name: 'Rename device' }).click()
+    const input = page.getByRole('textbox', { name: 'Device name' })
+    await expect(input).toHaveValue(name)
+    return input
+  }
+
+  test('renames a device from its page, everywhere it shows', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+    await page.goto(`/devices/${reply.device_id}`)
+
+    const renamed = uniqueDeviceName('renamed')
+    const input = await startRename(page, name)
+    await input.fill(renamed)
+    await input.press('Enter')
+
+    await expect(page.getByRole('heading', { name: renamed, exact: true })).toBeVisible()
+    await expect(input).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('heading', { name: renamed, exact: true })).toBeVisible()
+
+    await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click()
+    await expect(page.getByRole('link', { name: renamed, exact: true })).toBeVisible()
+    await expect(page.getByText(name, { exact: true })).toHaveCount(0)
+  })
+
+  test('Escape cancels a rename', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+    await page.goto(`/devices/${reply.device_id}`)
+
+    const input = await startRename(page, name)
+    await input.fill('not saved')
+    await input.press('Escape')
+
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+  })
+
+  test('only the owner can rename a device', async ({ request, browserName }) => {
+    test.skip(browserName !== 'chromium', 'exercises only the api, so runs once, in chromium')
+    const name = uniqueDeviceName()
+    const owner = await signupToken(request)
+    const reply = await handshake(await issueCode(request, owner), name)
+    if ('error' in reply) throw new Error(`handshake failed: ${reply.error}`)
+    const patch = (token: string, id: string, newName: string) =>
+      request.patch(`${API_URL}/devices/${id}`, { headers: { Authorization: `Bearer ${token}` }, data: { name: newName } })
+
+    // Another user's device answers as an unknown ID does, and is left unchanged.
+    const other = await signupToken(request)
+    for (const id of [reply.device_id, randomUUID()]) {
+      const res = await patch(other, id, 'hijacked')
+      expect(res.status()).toBe(404)
+      expect(await res.json()).toEqual({ code: 'not_found', message: 'device not found' })
+    }
+    const get = () => request.get(`${API_URL}/devices/${reply.device_id}`, { headers: { Authorization: `Bearer ${owner}` } })
+    expect(await (await get()).json()).toMatchObject({ name })
+
+    const blank = await patch(owner, reply.device_id, '   ')
+    expect(blank.status()).toBe(400)
+    expect(await blank.json()).toMatchObject({ code: 'invalid_request' })
+
+    const res = await patch(owner, reply.device_id, '  Bench rover ')
+    expect(res.status()).toBe(200)
+    expect(await res.json()).toMatchObject({ id: reply.device_id, name: 'Bench rover' })
+    expect(await (await get()).json()).toMatchObject({ name: 'Bench rover' })
+  })
+})
+
 test.describe('broker', () => {
   // These exercise only the broker and devicemgr, so one browser is enough.
   test.skip(({ browserName }) => browserName !== 'chromium', 'runs once, in chromium')

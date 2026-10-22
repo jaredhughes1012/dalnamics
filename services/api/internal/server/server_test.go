@@ -94,7 +94,7 @@ func TestBearerOperationsComeFromSpec(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]bool{
 		"logout": true, "authorizecli": true, "getme": true,
-		"listdevices": true, "getdevice": true, "createdeviceregistrationcode": true,
+		"listdevices": true, "getdevice": true, "updatedevice": true, "createdeviceregistrationcode": true,
 	}, ops)
 }
 

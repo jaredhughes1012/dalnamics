@@ -47,6 +47,18 @@ func (s *Server) GetDevice(ctx context.Context, req apigen.GetDeviceRequestObjec
 	return apigen.GetDevice200JSONResponse(toDevice(d)), nil
 }
 
+func (s *Server) UpdateDevice(ctx context.Context, req apigen.UpdateDeviceRequestObject) (apigen.UpdateDeviceResponseObject, error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d, err := s.devices.Rename(ctx, p.UserID, req.Id, req.Body.Name)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.UpdateDevice200JSONResponse(toDevice(d)), nil
+}
+
 func toDevice(d devices.Device) apigen.Device {
 	return apigen.Device{
 		Id:         d.ID,

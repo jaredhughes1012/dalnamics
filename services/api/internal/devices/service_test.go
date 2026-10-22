@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,4 +180,86 @@ func TestGetStoreError(t *testing.T) {
 	_, err := s.Get(context.Background(), uuid.New(), uuid.New())
 	assert.ErrorIs(t, err, boom)
 	assert.NotErrorIs(t, err, ErrNotFound)
+}
+
+func TestRename(t *testing.T) {
+	s, q := newMockedService(t)
+	userID, id := uuid.New(), uuid.New()
+	expectTx(q, 1)
+	gomock.InOrder(
+		q.EXPECT().RenameDevice(gomock.Any(), storedevices.RenameDeviceParams{Name: "Bench rover", ID: id, UserID: userID}).Return(id, nil),
+		q.EXPECT().GetDeviceForUser(gomock.Any(), storedevices.GetDeviceForUserParams{ID: id, UserID: userID}).
+			Return(storedevices.GetDeviceForUserRow{ID: id, Type: "harwood0", Name: "Bench rover", CreatedAt: testNow}, nil),
+	)
+
+	got, err := s.Rename(context.Background(), userID, id, "  Bench rover\n")
+
+	require.NoError(t, err)
+	assert.Equal(t, Device{ID: id, Type: "harwood0", Name: "Bench rover", CreatedAt: testNow}, got)
+}
+
+func TestRenameAcceptsMaxLengthInRunes(t *testing.T) {
+	s, q := newMockedService(t)
+	name := strings.Repeat("é", 100) // 200 bytes, 100 runes
+	expectTx(q, 1)
+	q.EXPECT().RenameDevice(gomock.Any(), gomock.Cond(func(p storedevices.RenameDeviceParams) bool { return p.Name == name })).Return(uuid.New(), nil)
+	q.EXPECT().GetDeviceForUser(gomock.Any(), gomock.Any()).Return(storedevices.GetDeviceForUserRow{Name: name}, nil)
+
+	got, err := s.Rename(context.Background(), uuid.New(), uuid.New(), name)
+
+	require.NoError(t, err)
+	assert.Equal(t, name, got.Name)
+}
+
+func TestRenameRejectsInvalidNames(t *testing.T) {
+	for _, tc := range []struct{ desc, name, message string }{
+		{"empty", "", "name: is required"},
+		{"whitespace only", " \t\n", "name: is required"},
+		{"101 runes", strings.Repeat("é", 101), "name: must be at most 100 characters"},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			s, _ := newMockedService(t) // no store calls expected
+
+			_, err := s.Rename(context.Background(), uuid.New(), uuid.New(), tc.name)
+
+			var verr *ValidationError
+			require.ErrorAs(t, err, &verr)
+			assert.EqualError(t, err, tc.message)
+		})
+	}
+}
+
+func TestRenameNotFound(t *testing.T) {
+	s, q := newMockedService(t)
+	expectTx(q, 1)
+	// Another user's device and an unknown ID both insert nothing.
+	q.EXPECT().RenameDevice(gomock.Any(), gomock.Any()).Return(uuid.Nil, store.ErrNoRows)
+
+	_, err := s.Rename(context.Background(), uuid.New(), uuid.New(), "Bench rover")
+
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestRenameStoreError(t *testing.T) {
+	s, q := newMockedService(t)
+	boom := errors.New("boom")
+	expectTx(q, 1)
+	q.EXPECT().RenameDevice(gomock.Any(), gomock.Any()).Return(uuid.Nil, boom)
+
+	_, err := s.Rename(context.Background(), uuid.New(), uuid.New(), "Bench rover")
+
+	assert.ErrorIs(t, err, boom)
+	assert.NotErrorIs(t, err, ErrNotFound)
+}
+
+func TestRenameReadBackError(t *testing.T) {
+	s, q := newMockedService(t)
+	boom := errors.New("boom")
+	expectTx(q, 1)
+	q.EXPECT().RenameDevice(gomock.Any(), gomock.Any()).Return(uuid.New(), nil)
+	q.EXPECT().GetDeviceForUser(gomock.Any(), gomock.Any()).Return(storedevices.GetDeviceForUserRow{}, boom)
+
+	_, err := s.Rename(context.Background(), uuid.New(), uuid.New(), "Bench rover")
+
+	assert.ErrorIs(t, err, boom)
 }

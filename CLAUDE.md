@@ -60,6 +60,7 @@ devicemgr's private spec (`services/devicemgr/openapi.yaml`) follows the same st
 - Flat packages: one package per concern area, with topics split into files (e.g. `auth/{service,tokens,password,pkce}.go`). Add a subpackage only for a real boundary.
 - Configuration comes from the environment through a typed `config` package; no globals.
 - Each service owns one Postgres schema (`public` for the api, `devicemgr` for devicemgr) and writes only to it; the api may read `devicemgr` tables. A schema a service creates gets a `COMMENT ON SCHEMA`.
+  - Data the api keeps about devicemgr's records (e.g. a device's user-given name) goes in an api table keyed by devicemgr's ID that overlays devicemgr's row on read, never in devicemgr's schema ([arch.md#data](docs/arch.md#data)).
 - Data access: write SQL in `services/<svc>/internal/store/queries/*.sql`; sqlc generates a domain package under `store/` (e.g. `store/auth`). Compose each domain's `Querier`/`Queries` into the root `store.Querier`/`store.Store`. Application code depends on `store.Querier` only.
   - A domain that reads the other service's schema lists that service's migrations in its sqlc `schema` (e.g. the api's `devices` entry lists devicemgr's).
   - Transactions go through `store.Querier.InTx(ctx, func(store.Querier) error)`; in tests, stub it to run the callback against the same mock.

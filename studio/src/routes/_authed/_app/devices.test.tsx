@@ -10,12 +10,16 @@ const bench: Device = {
   type: 'harwood0',
   name: 'bench-rover',
   created_at: '2026-01-02T03:04:05Z',
+  online: true,
+  last_seen_at: '2026-01-04T05:06:07Z',
 }
 const garage: Device = {
   id: '33333333-3333-3333-3333-333333333333',
   type: 'harwood0',
   name: 'garage-rover',
   created_at: '2026-01-03T03:04:05Z',
+  online: false,
+  last_seen_at: null,
 }
 
 async function signIn() {
@@ -48,6 +52,127 @@ describe('devices', () => {
     ])
     expect(rows[1]).toHaveTextContent('harwood0')
     expect(screen.getByRole('link', { name: 'Devices' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows whether each device is online next to its name', async () => {
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([garage, bench, { ...bench, id: '44444444-4444-4444-4444-444444444444', name: 'shed-rover', online: false }]) })
+    renderRoute('/devices')
+
+    const benchRow = await screen.findByRole('row', { name: /bench-rover/ })
+    const online = within(benchRow).getByRole('img', { name: 'Online' })
+    expect(online).toHaveClass('bg-green-500')
+    expect(online.title).toMatch(/^Last seen /)
+
+    const never = within(screen.getByRole('row', { name: /garage-rover/ })).getByRole('img', { name: 'Offline' })
+    expect(never).toHaveClass('bg-muted-foreground/40')
+    expect(never).toHaveAttribute('title', 'Never connected')
+
+    const gone = within(screen.getByRole('row', { name: /shed-rover/ })).getByRole('img', { name: 'Offline' })
+    expect(gone.title).toMatch(/^Last seen /)
+  })
+
+  it('refreshes device status every 15 seconds until the page is left', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    let devices = [garage]
+    const spy = mockApi({ 'GET /devices': () => Response.json(devices) })
+    const { unmount } = renderRoute('/devices')
+    const row = await screen.findByRole('row', { name: /garage-rover/ })
+    expect(within(row).getByRole('img', { name: 'Offline' })).toBeInTheDocument()
+    const loads = () => requestsOf(spy).filter((r) => r === 'GET /devices').length
+    const initial = loads()
+
+    devices = [{ ...garage, online: true, last_seen_at: new Date().toISOString() }]
+    await advance(14_000)
+    expect(loads()).toBe(initial)
+    await advance(1_000)
+
+    expect(loads()).toBe(initial + 1)
+    expect(await within(screen.getByRole('row', { name: /garage-rover/ })).findByRole('img', { name: 'Online' })).toBeInTheDocument()
+
+    unmount()
+    await advance(30_000)
+    expect(loads()).toBe(initial + 1)
+  })
+
+  it('waits for a slow refresh before scheduling the next one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    let slow = false
+    const spy = mockApi({
+      'GET /devices': async () => {
+        if (slow) await new Promise((r) => setTimeout(r, 20_000))
+        return Response.json([garage])
+      },
+    })
+    renderRoute('/devices')
+    await screen.findByRole('row', { name: /garage-rover/ })
+    const loads = () => requestsOf(spy).filter((r) => r === 'GET /devices').length
+    const initial = loads()
+
+    slow = true
+    await advance(15_000)
+    expect(loads()).toBe(initial + 1)
+    slow = false
+    await advance(19_000)
+    expect(loads(), 'no new request while one is in flight').toBe(initial + 1)
+
+    await advance(1_000 + 15_000)
+    expect(loads()).toBe(initial + 2)
+  })
+
+  describe('while the tab is hidden', () => {
+    let hidden = false
+    beforeEach(() => {
+      hidden = false
+      vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden)
+    })
+    afterEach(() => vi.restoreAllMocks())
+
+    it('skips refreshes and refreshes as soon as it is shown', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      await signIn()
+      const spy = mockApi({ 'GET /devices': () => Response.json([garage]) })
+      renderRoute('/devices')
+      await screen.findByRole('row', { name: /garage-rover/ })
+      const loads = () => requestsOf(spy).filter((r) => r === 'GET /devices').length
+      const initial = loads()
+
+      hidden = true
+      await advance(60_000)
+      expect(loads()).toBe(initial)
+
+      hidden = false
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(loads()).toBe(initial + 1)
+    })
+  })
+
+  it('shows status as unknown while refreshes fail', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    let failing = false
+    mockApi({
+      'GET /devices': () =>
+        failing ? Response.json({ code: 'internal', message: 'internal server error' }, { status: 500 }) : Response.json([bench]),
+    })
+    renderRoute('/devices')
+    const row = await screen.findByRole('row', { name: /bench-rover/ })
+    expect(within(row).getByRole('img', { name: 'Online' })).toBeInTheDocument()
+
+    failing = true
+    await advance(15_000)
+    expect(await screen.findByText('internal server error')).toBeInTheDocument()
+    const unknown = within(screen.getByRole('row', { name: /bench-rover/ })).getByRole('img', { name: 'Status unknown' })
+    expect(unknown).not.toHaveClass('bg-green-500')
+    expect(unknown.title).toMatch(/^Couldn’t refresh status\. Last seen /)
+
+    failing = false
+    await advance(15_000)
+    expect(await within(screen.getByRole('row', { name: /bench-rover/ })).findByRole('img', { name: 'Online' })).toBeInTheDocument()
   })
 
   it('shows an empty state', async () => {

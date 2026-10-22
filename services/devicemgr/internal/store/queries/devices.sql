@@ -11,3 +11,15 @@ RETURNING id;
 
 -- name: GetDeviceSecretHash :one
 SELECT secret_hash FROM devicemgr.devices WHERE id = @id;
+
+-- name: MarkDeviceSeen :execrows
+-- Records a heartbeat: the device is online for offline_after_seconds from now.
+-- Inserts only for a known device, so an unknown ID is a no-op. Skips a row
+-- seen within min_interval_seconds, which bounds writes across devicemgr
+-- instances.
+INSERT INTO devicemgr.device_connectivity (device_id, last_seen_at, online_until)
+SELECT id, now(), now() + make_interval(secs => @offline_after_seconds::float8)
+FROM devicemgr.devices WHERE id = @device_id
+ON CONFLICT (device_id) DO UPDATE
+SET last_seen_at = EXCLUDED.last_seen_at, online_until = EXCLUDED.online_until
+WHERE device_connectivity.last_seen_at < now() - make_interval(secs => @min_interval_seconds::float8);

@@ -306,6 +306,13 @@ export interface components {
              * @description When the device was registered
              */
             created_at: string;
+            /** @description Whether the device has sent a heartbeat recently */
+            online: boolean;
+            /**
+             * Format: date-time
+             * @description When the device last sent a heartbeat; null if it never has
+             */
+            last_seen_at: string | null;
         };
         DeviceRegistrationCode: {
             /**

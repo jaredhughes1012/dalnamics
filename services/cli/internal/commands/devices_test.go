@@ -86,10 +86,11 @@ func TestDevicesRegisterJSON(t *testing.T) {
 
 func TestDevicesList(t *testing.T) {
 	useTempCredentials(t)
-	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
 	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.Local)
+	seen := created.Add(time.Hour)
 	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{
-		{Id: id, Name: "bench-rover", Type: "harwood0", CreatedAt: created},
+		{Id: uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11"), Name: "bench-rover", Type: "harwood0", CreatedAt: created, Online: true, LastSeenAt: &seen},
+		{Id: uuid.MustParse("7a2d2f9f-3b9f-4a1d-8e66-3b9e1d2c8f22"), Name: "garage-rover", Type: "harwood0", CreatedAt: created},
 	})
 	devLogin(t, api.URL)
 
@@ -97,22 +98,27 @@ func TestDevicesList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, ""+
-		"ID                                    NAME         TYPE      REGISTERED\n"+
-		"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11  bench-rover  harwood0  2026-01-02 03:04:05\n", out)
+		"ID                                    NAME          TYPE      STATUS   REGISTERED\n"+
+		"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11  bench-rover   harwood0  online   2026-01-02 03:04:05\n"+
+		"7a2d2f9f-3b9f-4a1d-8e66-3b9e1d2c8f22  garage-rover  harwood0  offline  2026-01-02 03:04:05\n", out)
 }
 
 func TestDevicesListJSON(t *testing.T) {
 	useTempCredentials(t)
 	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
+	seen := time.Date(2026, 1, 2, 4, 5, 6, 0, time.UTC)
 	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{
-		{Id: id, Name: "bench-rover", Type: "harwood0", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)},
+		{Id: id, Name: "bench-rover", Type: "harwood0", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Online: true, LastSeenAt: &seen},
+		{Id: id, Name: "garage-rover", Type: "harwood0", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)},
 	})
 	devLogin(t, api.URL)
 
 	out, err := runRoot(t, "devices", "list", "--json", "--api-url", api.URL)
 
 	require.NoError(t, err)
-	assert.JSONEq(t, `[{"id":"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11","name":"bench-rover","type":"harwood0","created_at":"2026-01-02T03:04:05Z"}]`, out)
+	assert.JSONEq(t, `[`+
+		`{"id":"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11","name":"bench-rover","type":"harwood0","created_at":"2026-01-02T03:04:05Z","online":true,"last_seen_at":"2026-01-02T04:05:06Z"},`+
+		`{"id":"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11","name":"garage-rover","type":"harwood0","created_at":"2026-01-02T03:04:05Z","online":false,"last_seen_at":null}]`, out)
 }
 
 func TestDevicesListEmpty(t *testing.T) {

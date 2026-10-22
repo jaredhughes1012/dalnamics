@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, []byte(token), cfg.Token)
 	assert.Equal(t, "mqtt://mosquitto:1883", cfg.MQTTURL.String())
 	assert.Equal(t, []byte(mqttPassword), cfg.MQTTPassword)
+	assert.Equal(t, 90*time.Second, cfg.OfflineAfter)
 }
 
 func TestLoadAddr(t *testing.T) {
@@ -86,6 +88,21 @@ func TestLoadRequiresMQTTPassword(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(env(valid(map[string]string{"DEVICEMGR_MQTT_PASSWORD": pw})))
 			assert.ErrorContains(t, err, "DEVICEMGR_MQTT_PASSWORD")
+		})
+	}
+}
+
+func TestLoadOfflineAfter(t *testing.T) {
+	cfg, err := Load(env(valid(map[string]string{"DEVICEMGR_OFFLINE_AFTER": "2m"})))
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Minute, cfg.OfflineAfter)
+}
+
+func TestLoadRejectsBadOfflineAfter(t *testing.T) {
+	for name, v := range map[string]string{"garbage": "soon", "no unit": "90", "zero": "0s", "negative": "-5s"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(env(valid(map[string]string{"DEVICEMGR_OFFLINE_AFTER": v})))
+			assert.ErrorContains(t, err, "DEVICEMGR_OFFLINE_AFTER")
 		})
 	}
 }

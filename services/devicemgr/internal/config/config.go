@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
+
+	"dalnamics/services/devicemgr/internal/devices"
 )
 
 // Config is devicemgr's runtime configuration.
@@ -22,6 +25,9 @@ type Config struct {
 	// MQTTPassword is devicemgr's broker password as the superuser
 	// "devicemgr" (DEVICEMGR_MQTT_PASSWORD, at least 32 bytes).
 	MQTTPassword []byte
+	// OfflineAfter is how long a device stays online after a heartbeat
+	// (DEVICEMGR_OFFLINE_AFTER, a Go duration, default 90s).
+	OfflineAfter time.Duration
 }
 
 const (
@@ -64,5 +70,24 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, fmt.Errorf("DEVICEMGR_MQTT_PASSWORD must be at least %d bytes", minMQTTPasswordLen))
 	}
 
+	offlineAfter, err := duration(getenv, "DEVICEMGR_OFFLINE_AFTER", devices.DefaultOfflineAfter)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.OfflineAfter = offlineAfter
+
 	return cfg, errors.Join(errs...)
+}
+
+// duration reads a positive Go duration from key, or def when key is unset.
+func duration(getenv func(string) string, key string, def time.Duration) (time.Duration, error) {
+	raw := getenv(key)
+	if raw == "" {
+		return def, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration such as 90s", key)
+	}
+	return d, nil
 }

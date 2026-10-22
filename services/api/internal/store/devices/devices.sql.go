@@ -38,19 +38,25 @@ func (q *Queries) DeleteExpiredDeviceRegistrationCodes(ctx context.Context) erro
 }
 
 const listDevicesByUser = `-- name: ListDevicesByUser :many
-SELECT id, type, name, created_at FROM devicemgr.devices
-WHERE user_id = $1
-ORDER BY created_at DESC, id
+SELECT d.id, d.type, d.name, d.created_at,
+       coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
+FROM devicemgr.devices d
+LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
+WHERE d.user_id = $1
+ORDER BY d.created_at DESC, d.id
 `
 
 type ListDevicesByUserRow struct {
-	ID        uuid.UUID
-	Type      string
-	Name      string
-	CreatedAt time.Time
+	ID         uuid.UUID
+	Type       string
+	Name       string
+	CreatedAt  time.Time
+	Online     bool
+	LastSeenAt *time.Time
 }
 
-// Reads devicemgr's schema, which the api may read but never writes.
+// Reads devicemgr's schema, which the api may read but never writes. A device
+// with no connectivity row has never connected, so it is offline.
 func (q *Queries) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]ListDevicesByUserRow, error) {
 	rows, err := q.db.Query(ctx, listDevicesByUser, userID)
 	if err != nil {
@@ -65,6 +71,8 @@ func (q *Queries) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]Li
 			&i.Type,
 			&i.Name,
 			&i.CreatedAt,
+			&i.Online,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}

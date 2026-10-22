@@ -3,8 +3,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { RegisterDeviceDialog } from '@/components/register-device-dialog'
+import { devicesRefreshMs } from '@/lib/config'
 import { useDevicesStore } from '@/stores/devices'
 
 export const Route = createFileRoute('/_authed/_app/devices')({
@@ -13,12 +15,33 @@ export const Route = createFileRoute('/_authed/_app/devices')({
 
 const registeredAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
+/** How often the page refreshes the list, so each device's status stays current. */
+const REFRESH_MS = devicesRefreshMs()
+
 function Devices() {
   const { status, devices, error, load } = useDevicesStore()
   const [registering, setRegistering] = useState(false)
 
+  // Each refresh is scheduled after the previous one finishes, so slow
+  // requests never pile up. A hidden tab skips refreshes and catches up as
+  // soon as it's shown again.
   useEffect(() => {
-    void load()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
+    const refresh = async () => {
+      if (!document.hidden) await load()
+      if (!stopped) timer = setTimeout(() => void refresh(), REFRESH_MS)
+    }
+    const onVisibilityChange = () => {
+      if (!document.hidden) void load()
+    }
+    void refresh()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [load])
 
   return (
@@ -53,7 +76,12 @@ function Devices() {
               <tbody>
                 {devices.map((d) => (
                   <tr key={d.id} className="border-b last:border-0">
-                    <td className="px-6 py-3 font-medium">{d.name}</td>
+                    <td className="px-6 py-3 font-medium">
+                      <span className="flex items-center gap-2">
+                        <DeviceStatus device={d} stale={status === 'error'} />
+                        {d.name}
+                      </span>
+                    </td>
                     <td className="px-6 py-3">{d.type}</td>
                     <td className="px-6 py-3 text-muted-foreground">{registeredAt.format(new Date(d.created_at))}</td>
                   </tr>

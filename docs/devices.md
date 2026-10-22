@@ -1,15 +1,15 @@
 # Devices
 
-A device is a piece of hardware linked to one user's account, such as a [harwood0](../harwood0/) robot. Devices talk to the platform over MQTT through the broker, never over the [api](arch.md#api). [devicemgr](arch.md#devicemgr) registers them, owns their records, and decides what each one may do on the broker. Users see their devices through the api, which reads devicemgr's schema ([Data](arch.md#data)).
+A device is a piece of hardware linked to one user's account, such as a [harwood0](../harwood0/) robot. Devices talk to the platform over MQTT through the broker, never over the [api](arch.md#api). [devicemgr](arch.md#devicemgr) registers them, owns their records, decides what each one may do on the broker, and tracks whether each one is online. Users see their devices through the api, which reads devicemgr's schema ([Data](arch.md#data)).
 
 Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configuration) are shared across services and listed in arch.md.
 
 | Where | Code |
 |---|---|
-| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql) |
-| devicemgr | [`internal/devices`](../services/devicemgr/internal/devices/) (redemption, broker rules), [`internal/mqtt`](../services/devicemgr/internal/mqtt/) (handshake), [`server/mqtt_auth_handlers.go`](../services/devicemgr/internal/server/mqtt_auth_handlers.go), [`queries/devices.sql`](../services/devicemgr/internal/store/queries/devices.sql) |
+| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing with connectivity), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql) |
+| devicemgr | [`internal/devices`](../services/devicemgr/internal/devices/) (redemption, broker rules, [`presence.go`](../services/devicemgr/internal/devices/presence.go)), [`internal/mqtt`](../services/devicemgr/internal/mqtt/) (routing, handshake, [`presence.go`](../services/devicemgr/internal/mqtt/presence.go)), [`server/mqtt_auth_handlers.go`](../services/devicemgr/internal/server/mqtt_auth_handlers.go), [`queries/devices.sql`](../services/devicemgr/internal/store/queries/devices.sql) |
 | Broker | [`mosquitto/mosquitto.conf`](../services/devicemgr/mosquitto/mosquitto.conf) |
-| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts) |
+| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`components/device-status.tsx`](../studio/src/components/device-status.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts) |
 | cli | [`commands/devices.go`](../services/cli/internal/commands/devices.go) |
 | harwood0 | [`harwood0_api/platform.py`](../harwood0/api/src/harwood0_api/platform.py) |
 
@@ -23,8 +23,10 @@ Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configur
 | `name` | 1–100 characters; defaults to `type` |
 | `secret_hash` | SHA-256 of the device's secret, its MQTT password |
 | `registration_code_id` | The code the device redeemed; unique |
+| `online` | Whether the device has sent a heartbeat recently ([Connectivity](#connectivity)) |
+| `last_seen_at` | When devicemgr last recorded a heartbeat from the device; null if it never connected |
 
-Devices live in `devicemgr.devices`. Registration codes live in the api's `public.device_registration_codes`.
+Devices live in `devicemgr.devices`, and their connectivity in `devicemgr.device_connectivity`, one row per device from its first heartbeat. That row stores `last_seen_at` and `online_until`, and the api derives `online` as `online_until > now()`. Registration codes live in the api's `public.device_registration_codes`.
 
 ## Registration
 
@@ -77,7 +79,7 @@ Registering a local device through studio on every fresh database slows down dev
 
 ### Handshake
 
-The request goes to `devices/register/{client id}`, and the reply comes back on `devices/register/{client id}/reply`. Messages are JSON at QoS 1. The device subscribes to the reply topic before publishing, so it can't miss the reply. devicemgr reads requests through the shared subscription `$share/devicemgr/devices/register/+`, so each request is handled by exactly one devicemgr instance.
+The request goes to `devices/register/{client id}`, and the reply comes back on `devices/register/{client id}/reply`. Messages are JSON at QoS 1. The device subscribes to the reply topic before publishing, so it can't miss the reply. devicemgr reads requests through the shared subscription `$share/devicemgr/devices/register/+`, so each request is handled by exactly one devicemgr instance. Its replies have one topic level too many to match, so devicemgr never receives them. devicemgr also holds a shared subscription for [heartbeats](#connectivity), `$share/devicemgr/devices/+/heartbeat`. The request of a client named `heartbeat` matches both filters and arrives twice, so each subscription carries its own MQTT subscription identifier, and devicemgr routes by that identifier, not by topic. The request is redeemed once.
 
 | Message | Payload |
 |---|---|
@@ -102,3 +104,31 @@ The HTTP backend can't send headers, so the three `/mqtt/*` operations take no [
 | Registered device | device ID / secret | Read, write, and subscribe within `devices/{device id}` and below |
 
 Everything else is denied, including wildcard subscriptions that reach outside a device's own prefix (e.g. `devices/+/telemetry`).
+
+## Connectivity
+
+Users want to know which of their devices are reachable. A device counts as online while it keeps sending heartbeats, and goes offline once it has missed them for a threshold. Each heartbeat records an expiry, and the device is online until that expiry passes. No process has to mark it offline. Studio shows a green or gray dot beside each device's name, and `cli devices list` has a STATUS column.
+
+```mermaid
+sequenceDiagram
+    participant D as Device
+    participant B as Mosquitto
+    participant DM as devicemgr
+    participant DB as Postgres
+    participant U as User (studio or cli)
+    participant API as api
+    D->>B: PUBLISH devices/{id}/heartbeat (every heartbeat interval)
+    B->>DM: deliver (shared subscription devices/+/heartbeat)
+    DM->>DM: skip if this instance wrote the device within the throttle window
+    DM->>DB: upsert device_connectivity last_seen_at = now(), online_until = now() + DEVICEMGR_OFFLINE_AFTER
+    U->>API: GET /devices (studio polls every VITE_DEVICES_REFRESH_MS)
+    API->>DB: devicemgr.devices LEFT JOIN device_connectivity
+    API-->>U: online (online_until > now()), last_seen_at per device
+```
+
+- **Offline by default:** a device with no connectivity row has never connected, so it is offline with `last_seen_at` null. The device's first heartbeat creates the row, and only for a device that exists; a heartbeat from an unknown ID is ignored.
+- **Heartbeats only:** a device publishes an empty, unretained QoS 0 message to `devices/{device id}/heartbeat` right after each connect and then on a fixed interval, whatever else it sends. devicemgr subscribes to heartbeats and nothing else a device sends, so telemetry and other high-rate traffic never reach it and can't crowd out registration requests. A connection alone doesn't mark a device online, and the broker authentication endpoints have no side effects. harwood0 sends one every `HARWOOD0_PLATFORM_HEARTBEAT_S` ([harwood0 architecture](../harwood0/docs/architecture.md)).
+- **Offline by expiry:** each heartbeat sets `online_until` to `DEVICEMGR_OFFLINE_AFTER` past the database clock. The api compares it with `now()` when it reads, so a device goes offline on time even while devicemgr is down, and nothing has to sweep or catch up after an outage. Clock skew between instances doesn't matter, because only the database clock is used.
+- **Throttled writes:** presence is a hot, narrow row, so it lives apart from `devicemgr.devices` and never bumps that table's `updated_at`. Each devicemgr instance remembers, in memory, when it last wrote each device. It writes at most once per throttle window of `DEVICEMGR_OFFLINE_AFTER / 6` (15 s by default), and it reserves a write before making it, so a burst of messages from one device writes once. If nothing was written, the entry is dropped so the next heartbeat retries. That covers a failed write, an unknown device, and a row another instance wrote within the window. The upsert also skips a row written within the window, so several instances add at most a few redundant writes. No shared cache is needed. Entries older than the window are pruned once per `DEVICEMGR_OFFLINE_AFTER`.
+- **Heartbeat interval:** keep a device's heartbeat interval at most `DEVICEMGR_OFFLINE_AFTER / 3` (30 s by default). The interval is then twice the throttle window, so no heartbeat is throttled away, and a device stays online through two lost heartbeats.
+- **Freshness in studio:** the Devices page refetches the list [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) after the previous fetch finishes: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page. A response that arrives after a newer one is dropped. A hidden tab skips refreshes and refreshes as soon as it's shown again. While refreshes fail, each device's dot shows as unknown next to the error, so an old status never passes for a current one.

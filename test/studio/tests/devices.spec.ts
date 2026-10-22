@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { connectBroker, handshake, issueCode, signupToken, uniqueDeviceName } from './device'
+import { connectBroker, handshake, issueCode, registerInStudio, signupToken, uniqueDeviceName } from './device'
 import { AUTH_FILE } from './env'
 
 test.use({ storageState: AUTH_FILE })
@@ -41,6 +41,46 @@ test('a device registers with a code from studio and connects with its credentia
   } finally {
     await device.endAsync()
   }
+})
+
+test.describe('connectivity', () => {
+  test('a device that has never connected shows as offline', async ({ page }) => {
+    const name = uniqueDeviceName()
+    await registerInStudio(page, name)
+
+    const status = page.getByRole('row', { name: new RegExp(name) }).getByRole('img')
+    await expect(status).toHaveAccessibleName('Offline')
+    await expect(status).toHaveAttribute('title', 'Never connected')
+  })
+
+  test('a heartbeat from a device shows it as online', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+
+    const device = await connectBroker({ username: reply.device_id, password: reply.secret, clientId: `e2e-${reply.device_id}` })
+    try {
+      await device.publishAsync(`devices/${reply.device_id}/heartbeat`, '', { qos: 0 })
+
+      const status = page.getByRole('row', { name: new RegExp(name) }).getByRole('img')
+      await expect(async () => {
+        await page.reload()
+        await expect(status).toHaveAccessibleName('Online', { timeout: 1_000 })
+      }).toPass({ timeout: 10_000 })
+      await expect(status).toHaveAttribute('title', /^Last seen /)
+
+      const [res] = await Promise.all([
+        page.waitForResponse(
+          (r) => r.request().resourceType() === 'fetch' && r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/devices'),
+        ),
+        page.reload(),
+      ])
+      const listed = (await res.json()).find((d: { id: string }) => d.id === reply.device_id)
+      expect(listed).toMatchObject({ online: true })
+      expect(Date.now() - Date.parse(listed.last_seen_at)).toBeLessThan(60_000)
+    } finally {
+      await device.endAsync()
+    }
+  })
 })
 
 test.describe('broker', () => {

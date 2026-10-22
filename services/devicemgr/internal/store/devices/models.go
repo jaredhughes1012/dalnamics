@@ -43,6 +43,13 @@ type DevicemgrDevice struct {
 	UpdatedAt          time.Time
 }
 
+// Whether each device is connected. Each heartbeat records last_seen_at and extends online_until by DEVICEMGR_OFFLINE_AFTER (throttled); a device is online while online_until is in the future.
+type DevicemgrDeviceConnectivity struct {
+	DeviceID    uuid.UUID
+	LastSeenAt  time.Time
+	OnlineUntil time.Time
+}
+
 // SHA-256 of every refresh token a session has rotated away from, written by a trigger on sessions. Presenting one of these again means the token was copied, so the api revokes its session.
 type RotatedRefreshToken struct {
 	TokenHash []byte

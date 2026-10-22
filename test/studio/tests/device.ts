@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { APIRequestContext } from '@playwright/test'
+import { expect, type APIRequestContext, type Page } from '@playwright/test'
 import mqtt, { type IClientOptions, type MqttClient } from 'mqtt'
 import { API_URL, MQTT_URL } from './env'
 import { uniqueEmail } from './fixtures'
@@ -50,6 +50,24 @@ export async function handshake(code: string, name: string): Promise<HandshakeRe
   } finally {
     await client.endAsync()
   }
+}
+
+/**
+ * Registers a device named name to the signed-in studio user: gets a code from
+ * the Devices page's dialog and plays the device's side of the handshake.
+ * Leaves the page on /devices with the dialog closed.
+ */
+export async function registerInStudio(page: Page, name: string): Promise<{ device_id: string; secret: string }> {
+  await page.goto('/devices')
+  await page.getByRole('button', { name: 'Register' }).click()
+  const dialog = page.getByRole('dialog')
+  const codeText = dialog.getByLabel('Registration code')
+  await expect(codeText).toHaveText(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/)
+  const reply = await handshake((await codeText.textContent())!, name)
+  if ('error' in reply) throw new Error(`handshake failed: ${reply.error}`)
+  await expect(dialog.getByRole('heading', { name: 'Device registered' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  return reply
 }
 
 /** Signs up a new user through the api and returns its access token. */

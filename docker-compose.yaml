@@ -58,6 +58,7 @@ services:
       DEVICEMGR_TOKEN: local-devicemgr-token-not-for-production-use
       DEVICEMGR_MQTT_URL: mqtt://mosquitto:1883
       DEVICEMGR_MQTT_PASSWORD: local-devicemgr-mqtt-password-not-for-production
+      DEVICEMGR_OFFLINE_AFTER: 90s
     ports:
       - "8081:8081"
       - "2346:2346" # delve

@@ -93,7 +93,13 @@ type Device struct {
 	// CreatedAt When the device was registered
 	CreatedAt time.Time          `json:"created_at"`
 	Id        openapi_types.UUID `json:"id"`
-	Name      string             `json:"name"`
+
+	// LastSeenAt When the device last sent a heartbeat; null if it never has
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	Name       string     `json:"name"`
+
+	// Online Whether the device has sent a heartbeat recently
+	Online bool `json:"online"`
 
 	// Type Kind of device, e.g. harwood0
 	//
@@ -1352,36 +1358,38 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"NFm9hBoPh5mOeZZqsuPno+cjNr+Z/38A",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

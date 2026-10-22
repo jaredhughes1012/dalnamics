@@ -1,6 +1,8 @@
 import asyncio
+import itertools
 import json
 import logging
+import math
 import stat
 from pathlib import Path
 from typing import Self
@@ -43,7 +45,10 @@ class FakeClient:
         self.broker = broker
         self.kwargs = kwargs
         self.calls: list[tuple] = []
-        self.inbox: asyncio.Queue[aiomqtt.Message] = asyncio.Queue()
+        # Messages to deliver, or an MqttError to raise as a dropped connection.
+        self.inbox: asyncio.Queue[aiomqtt.Message | aiomqtt.MqttError] = asyncio.Queue()
+        # (event loop time, topic, payload, qos) of every publish.
+        self.published: list[tuple[float, str, bytes | str, int]] = []
 
     async def __aenter__(self) -> Self:
         if self.kwargs["username"] != "register":
@@ -58,7 +63,10 @@ class FakeClient:
     async def subscribe(self, topic: str, qos: int = 0) -> None:
         self.calls.append(("subscribe", topic, qos))
 
-    async def publish(self, topic: str, payload: str, qos: int = 0) -> None:
+    async def publish(self, topic: str, payload: bytes | str, qos: int = 0) -> None:
+        self.published.append((asyncio.get_running_loop().time(), topic, payload, qos))
+        if not topic.startswith("devices/register/"):
+            return
         self.calls.append(("publish", topic, json.loads(payload), qos))
         if self.broker.reply is not None:
             msg = aiomqtt.Message(
@@ -70,7 +78,10 @@ class FakeClient:
     def messages(self):
         async def iterate():
             while True:
-                yield await self.inbox.get()
+                item = await self.inbox.get()
+                if isinstance(item, aiomqtt.MqttError):
+                    raise item
+                yield item
 
         return iterate()
 
@@ -96,18 +107,27 @@ def test_settings_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv("HARWOOD0_DEVICE_NAME", "bench-rover")
     monkeypatch.setenv("HARWOOD0_STATE_DIR", str(tmp_path))
     monkeypatch.setenv("HARWOOD0_PORT", "47801")
+    monkeypatch.setenv("HARWOOD0_PLATFORM_HEARTBEAT_S", "5")
     s = Settings.from_env()
-    assert (s.mqtt_url, s.registration_code, s.device_name, s.state_dir, s.port) == (
-        URL,
-        "AB3D7K",
-        "bench-rover",
-        tmp_path,
-        47801,
-    )
+    assert (
+        s.mqtt_url,
+        s.registration_code,
+        s.device_name,
+        s.state_dir,
+        s.port,
+        s.platform_heartbeat_s,
+    ) == (URL, "AB3D7K", "bench-rover", tmp_path, 47801, 5.0)
 
 
 def test_settings_defaults(monkeypatch):
-    for name in ("MQTT_URL", "REGISTRATION_CODE", "DEVICE_NAME", "STATE_DIR", "PORT"):
+    for name in (
+        "MQTT_URL",
+        "REGISTRATION_CODE",
+        "DEVICE_NAME",
+        "STATE_DIR",
+        "PORT",
+        "PLATFORM_HEARTBEAT_S",
+    ):
         monkeypatch.delenv(f"HARWOOD0_{name}", raising=False)
     s = Settings.from_env()
     assert s.mqtt_url == ""
@@ -115,6 +135,7 @@ def test_settings_defaults(monkeypatch):
     assert s.device_name
     assert s.state_dir == Path.home() / ".local/state/harwood0"
     assert s.port == 47800
+    assert s.platform_heartbeat_s == 30.0
 
 
 def test_credentials_round_trip_owner_only(tmp_path):
@@ -241,4 +262,92 @@ def test_no_mqtt_url_skips_platform(tmp_path):
     broker = FakeBroker()
     with TestClient(create_app(settings(tmp_path, mqtt_url=""), broker)) as client:
         assert client.post("/robot/stop").status_code == 204
+    assert broker.clients == []
+
+
+def heartbeats(client: FakeClient) -> list[tuple[float, str, bytes | str, int]]:
+    return [p for p in client.published if p[1].endswith("/heartbeat")]
+
+
+async def run_connected(broker: FakeBroker, heartbeat_s: float, seconds: float) -> None:
+    """Runs the device connection for a while, then stops it."""
+    task = asyncio.create_task(
+        platform.run_device(broker, URL, STORED, reconnect_s=0, heartbeat_s=heartbeat_s)
+    )
+    await asyncio.sleep(seconds)
+    await platform.stop_platform(task)
+
+
+def test_heartbeat_on_connect_then_every_interval():
+    broker = FakeBroker()
+
+    asyncio.run(run_connected(broker, heartbeat_s=0.1, seconds=0.25))
+
+    beats = heartbeats(broker.client(STORED.device_id))
+    topic = f"devices/{STORED.device_id}/heartbeat"
+    assert [(t, payload, qos) for _, t, payload, qos in beats] == [(topic, b"", 0)] * 3
+    gaps = [b[0] - a[0] for a, b in itertools.pairwise(beats)]
+    assert all(0.09 <= gap < 0.15 for gap in gaps), gaps
+
+
+def test_heartbeat_sent_right_after_connecting():
+    broker = FakeBroker()
+
+    async def run():
+        task = asyncio.create_task(platform.run_device(broker, URL, STORED, heartbeat_s=60))
+        await asyncio.wait_for(broker.device_connected.wait(), 1)
+        await asyncio.sleep(0.01)
+        await platform.stop_platform(task)
+
+    asyncio.run(run())
+    assert len(heartbeats(broker.client(STORED.device_id))) == 1
+
+
+def test_other_traffic_doesnt_delay_the_next_heartbeat():
+    client = FakeClient(FakeBroker(), {"username": STORED.device_id})
+
+    async def run():
+        link = platform.DeviceLink(client, STORED.device_id)
+        task = asyncio.create_task(platform.heartbeat(link, 0.1))
+        await asyncio.sleep(0.06)
+        await link.publish("telemetry", '{"battery": 0.9}')
+        await asyncio.sleep(0.07)
+        task.cancel()
+
+    asyncio.run(run())
+    topics = [topic.rsplit("/", 1)[1] for _, topic, _, _ in client.published]
+    assert topics == ["heartbeat", "telemetry", "heartbeat"]
+    first_at, next_at = client.published[0][0], client.published[2][0]
+    assert 0.09 <= next_at - first_at < 0.12
+
+
+def test_heartbeat_stops_on_drop_and_restarts_on_reconnect():
+    broker = FakeBroker()
+
+    async def run():
+        task = asyncio.create_task(
+            platform.run_device(broker, URL, STORED, reconnect_s=0.05, heartbeat_s=0.02)
+        )
+        await asyncio.sleep(0.05)
+        first = broker.clients[0]
+        await first.inbox.put(aiomqtt.MqttError("connection lost"))
+        await asyncio.sleep(0.01)
+        beats_after_drop = len(heartbeats(first))
+        await asyncio.sleep(0.1)
+        assert len(heartbeats(first)) == beats_after_drop, "no heartbeats on a dropped link"
+        await platform.stop_platform(task)
+
+    asyncio.run(run())
+    assert len(broker.clients) == 2
+    assert heartbeats(broker.clients[1]), "the new connection sends heartbeats"
+
+
+@pytest.mark.parametrize("interval", [0, -1, math.nan, math.inf])
+def test_invalid_heartbeat_fails_startup(tmp_path, interval):
+    platform.save_credentials(tmp_path / "state", STORED)
+    broker = FakeBroker()
+
+    app = create_app(settings(tmp_path, platform_heartbeat_s=interval), broker)
+    with pytest.raises(PlatformError, match="HARWOOD0_PLATFORM_HEARTBEAT_S"), TestClient(app):
+        pass
     assert broker.clients == []

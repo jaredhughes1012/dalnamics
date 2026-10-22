@@ -36,5 +36,12 @@ func (s *Server) ListDevices(ctx context.Context, _ apigen.ListDevicesRequestObj
 }
 
 func toDevice(d devices.Device) apigen.Device {
-	return apigen.Device{Id: d.ID, Type: d.Type, Name: d.Name, CreatedAt: d.CreatedAt}
+	return apigen.Device{
+		Id:         d.ID,
+		Type:       d.Type,
+		Name:       d.Name,
+		CreatedAt:  d.CreatedAt,
+		Online:     d.Online,
+		LastSeenAt: d.LastSeenAt,
+	}
 }

@@ -175,6 +175,43 @@ describe('devices', () => {
     expect(await within(screen.getByRole('row', { name: /bench-rover/ })).findByRole('img', { name: 'Online' })).toBeInTheDocument()
   })
 
+  it('opens a device when its row is clicked', async () => {
+    const user = userEvent.setup()
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([garage, bench]), [`GET /devices/${bench.id}`]: () => Response.json(bench) })
+    const { router } = renderRoute('/devices')
+
+    const row = await screen.findByRole('row', { name: /bench-rover/ })
+    await user.click(within(row).getByText('harwood0'))
+
+    expect(await screen.findByRole('heading', { name: 'bench-rover' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(`/devices/${bench.id}`)
+  })
+
+  it('links each device name to its page', async () => {
+    const user = userEvent.setup()
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([bench]), [`GET /devices/${bench.id}`]: () => Response.json(bench) })
+    const { router } = renderRoute('/devices')
+
+    const link = await screen.findByRole('link', { name: 'bench-rover' })
+    expect(link).toHaveAttribute('href', `/devices/${bench.id}`)
+
+    await user.click(link)
+    expect(await screen.findByRole('heading', { name: 'bench-rover' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(`/devices/${bench.id}`)
+    expect(router.history.length).toBe(2)
+  })
+
+  it('marks only Devices active in the nav rail', async () => {
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([]) })
+    renderRoute('/devices')
+
+    await screen.findByRole('heading', { name: 'Devices' })
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
+  })
+
   it('shows an empty state', async () => {
     await signIn()
     mockApi({ 'GET /devices': () => Response.json([]) })

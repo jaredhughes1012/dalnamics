@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { RegisterDeviceDialog } from '@/components/register-device-dialog'
-import { devicesRefreshMs } from '@/lib/config'
+import { useRefresh } from '@/lib/use-refresh'
 import { useDevicesStore } from '@/stores/devices'
 
 export const Route = createFileRoute('/_authed/_app/devices')({
@@ -15,34 +15,13 @@ export const Route = createFileRoute('/_authed/_app/devices')({
 
 const registeredAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-/** How often the page refreshes the list, so each device's status stays current. */
-const REFRESH_MS = devicesRefreshMs()
-
 function Devices() {
   const { status, devices, error, load } = useDevicesStore()
   const [registering, setRegistering] = useState(false)
 
-  // Each refresh is scheduled after the previous one finishes, so slow
-  // requests never pile up. A hidden tab skips refreshes and catches up as
-  // soon as it's shown again.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let stopped = false
-    const refresh = async () => {
-      if (!document.hidden) await load()
-      if (!stopped) timer = setTimeout(() => void refresh(), REFRESH_MS)
-    }
-    const onVisibilityChange = () => {
-      if (!document.hidden) void load()
-    }
-    void refresh()
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [load])
+  const navigate = useNavigate()
+  // Refreshing keeps each device's status current.
+  useRefresh(load)
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,11 +54,22 @@ function Devices() {
               </thead>
               <tbody>
                 {devices.map((d) => (
-                  <tr key={d.id} className="border-b last:border-0">
+                  <tr
+                    key={d.id}
+                    className="cursor-pointer border-b last:border-0 hover:bg-muted/50"
+                    // The name link handles its own clicks; the rest of the row
+                    // is a larger target for mouse users.
+                    onClick={(e) => {
+                      if ((e.target as Element).closest('a')) return
+                      void navigate({ to: '/devices/$deviceId', params: { deviceId: d.id } })
+                    }}
+                  >
                     <td className="px-6 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <DeviceStatus device={d} stale={status === 'error'} />
-                        {d.name}
+                        <Link to="/devices/$deviceId" params={{ deviceId: d.id }} className="hover:underline">
+                          {d.name}
+                        </Link>
                       </span>
                     </td>
                     <td className="px-6 py-3">{d.type}</td>

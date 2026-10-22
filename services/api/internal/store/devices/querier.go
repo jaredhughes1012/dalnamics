@@ -13,6 +13,8 @@ import (
 type Querier interface {
 	CreateDeviceRegistrationCode(ctx context.Context, arg CreateDeviceRegistrationCodeParams) error
 	DeleteExpiredDeviceRegistrationCodes(ctx context.Context) error
+	// Matches only the user's own devices, so another user's device looks unknown.
+	GetDeviceForUser(ctx context.Context, arg GetDeviceForUserParams) (GetDeviceForUserRow, error)
 	// Reads devicemgr's schema, which the api may read but never writes. A device
 	// with no connectivity row has never connected, so it is offline.
 	ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]ListDevicesByUserRow, error)

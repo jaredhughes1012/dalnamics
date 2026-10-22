@@ -3,7 +3,7 @@
 const DEFAULT_DEVICES_REFRESH_MS = 15_000
 
 /**
- * How often the Devices page refreshes the list (VITE_DEVICES_REFRESH_MS, in
+ * How often the Devices page and each device's page refresh (VITE_DEVICES_REFRESH_MS, in
  * milliseconds). Unset or invalid values fall back to 15 s. The dev server sets
  * 5 s in .env.development.
  */

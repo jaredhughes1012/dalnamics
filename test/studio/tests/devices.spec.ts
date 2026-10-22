@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
+import { expect, test, type Page } from '@playwright/test'
 import { connectBroker, handshake, issueCode, registerInStudio, signupToken, uniqueDeviceName } from './device'
-import { AUTH_FILE } from './env'
+import { API_URL, AUTH_FILE } from './env'
 
 test.use({ storageState: AUTH_FILE })
 
@@ -80,6 +81,91 @@ test.describe('connectivity', () => {
     } finally {
       await device.endAsync()
     }
+  })
+})
+
+test.describe('details', () => {
+  /** The status dot beside the device's name on its details page. */
+  const statusDot = (page: Page, name: string) =>
+    page.getByRole('main').locator('header', { has: page.getByRole('heading', { name, exact: true }) }).getByRole('img')
+
+  test('opens a device from the list and shows its details', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+
+    await page.getByRole('row', { name: new RegExp(name) }).getByRole('cell', { name: 'harwood0' }).click()
+
+    await expect(page).toHaveURL(`/devices/${reply.device_id}`)
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+    await expect(statusDot(page, name)).toHaveAccessibleName('Offline')
+    const field = (label: string) => page.getByRole('row', { name: new RegExp(`^${label}`) }).getByRole('cell')
+    await expect(field('ID')).toContainText(reply.device_id)
+    await expect(field('Type')).toHaveText('harwood0')
+    await expect(field('Status')).toHaveText('Offline')
+    await expect(field('Last seen')).toHaveText('Never')
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Devices' })).toHaveAttribute('aria-current', 'page')
+
+    await page.reload()
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+
+    await page.getByRole('main').getByRole('link', { name: 'Devices', exact: true }).click()
+    await expect(page).toHaveURL('/devices')
+    await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
+  })
+
+  test('opens a device from the keyboard', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+
+    await page.getByRole('link', { name, exact: true }).focus()
+    await page.keyboard.press('Enter')
+
+    await expect(page).toHaveURL(`/devices/${reply.device_id}`)
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+  })
+
+  test('shows a device coming online without a reload', async ({ page }) => {
+    const name = uniqueDeviceName()
+    const reply = await registerInStudio(page, name)
+    await page.goto(`/devices/${reply.device_id}`)
+    await expect(statusDot(page, name)).toHaveAccessibleName('Offline')
+
+    const device = await connectBroker({ username: reply.device_id, password: reply.secret, clientId: `e2e-${reply.device_id}` })
+    try {
+      await device.publishAsync(`devices/${reply.device_id}/heartbeat`, '', { qos: 0 })
+
+      // The dev server refreshes every 5 s.
+      await expect(statusDot(page, name)).toHaveAccessibleName('Online', { timeout: 15_000 })
+      await expect(statusDot(page, name)).toHaveAttribute('title', /^Last seen /)
+    } finally {
+      await device.endAsync()
+    }
+  })
+
+  test('another user’s device and an unknown ID are both not found', async ({ page, request }) => {
+    const name = uniqueDeviceName('someone-elses-rover')
+    const token = await signupToken(request)
+    const reply = await handshake(await issueCode(request, token), name)
+    if ('error' in reply) throw new Error(`handshake failed: ${reply.error}`)
+
+    for (const id of [reply.device_id, randomUUID()]) {
+      await page.goto(`/devices/${id}`)
+      await expect(page.getByRole('heading', { name: 'Device not found' })).toBeVisible()
+      await expect(page.getByText(name)).toHaveCount(0)
+    }
+
+    // The api answers the same for both, so it never confirms that an ID exists.
+    const other = await signupToken(request)
+    for (const id of [reply.device_id, randomUUID()]) {
+      const res = await request.get(`${API_URL}/devices/${id}`, { headers: { Authorization: `Bearer ${other}` } })
+      expect(res.status()).toBe(404)
+      expect(await res.json()).toEqual({ code: 'not_found', message: 'device not found' })
+    }
+    const own = await request.get(`${API_URL}/devices/${reply.device_id}`, { headers: { Authorization: `Bearer ${token}` } })
+    expect(await own.json()).toMatchObject({ id: reply.device_id, name })
+
+    await page.getByRole('link', { name: 'Back to devices' }).click()
+    await expect(page).toHaveURL('/devices')
   })
 })
 

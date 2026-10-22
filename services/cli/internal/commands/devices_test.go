@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +20,15 @@ import (
 // logged-in user's list.
 func fakeDevicesAPI(t *testing.T, code apigen.DeviceRegistrationCode, devices []apigen.Device) *httptest.Server {
 	t.Helper()
+	srv, _ := fakeDevicesAPIWithCount(t, code, devices)
+	return srv
+}
+
+// fakeDevicesAPIWithCount is fakeDevicesAPI, and also counts the requests made
+// to device endpoints.
+func fakeDevicesAPIWithCount(t *testing.T, code apigen.DeviceRegistrationCode, devices []apigen.Device) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
+	var deviceRequests atomic.Int32
 	authorized := func(w http.ResponseWriter, r *http.Request) bool {
 		if r.Header.Get("Authorization") != "Bearer access" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -45,13 +56,29 @@ func fakeDevicesAPI(t *testing.T, code apigen.DeviceRegistrationCode, devices []
 			_ = json.NewEncoder(w).Encode(devices)
 		}
 	})
+	mux.HandleFunc("GET /devices/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r) {
+			return
+		}
+		for _, d := range devices {
+			if d.Id.String() == r.PathValue("id") {
+				_ = json.NewEncoder(w).Encode(d)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(apigen.Error{Code: "not_found", Message: "device not found"})
+	})
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/devices") {
+			deviceRequests.Add(1)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		mux.ServeHTTP(w, r)
 	}))
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, &deviceRequests
 }
 
 func devLogin(t *testing.T, apiURL string) {
@@ -133,7 +160,7 @@ func TestDevicesListEmpty(t *testing.T) {
 }
 
 func TestDevicesNotLoggedIn(t *testing.T) {
-	for _, args := range [][]string{{"devices", "register"}, {"devices", "list"}} {
+	for _, args := range [][]string{{"devices", "register"}, {"devices", "list"}, {"devices", "get", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11"}} {
 		t.Run(args[1], func(t *testing.T) {
 			useTempCredentials(t)
 			api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, nil)
@@ -143,4 +170,74 @@ func TestDevicesNotLoggedIn(t *testing.T) {
 			assert.ErrorContains(t, err, "not logged in; run `cli auth login`")
 		})
 	}
+}
+
+func TestDevicesGet(t *testing.T) {
+	useTempCredentials(t)
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.Local)
+	seen := created.Add(time.Hour)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{
+		{Id: uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11"), Name: "bench-rover", Type: "harwood0", CreatedAt: created, Online: true, LastSeenAt: &seen},
+	})
+	devLogin(t, api.URL)
+
+	out, err := runRoot(t, "devices", "get", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "--api-url", api.URL)
+
+	require.NoError(t, err)
+	assert.Equal(t, ""+
+		"ID          6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11\n"+
+		"NAME        bench-rover\n"+
+		"TYPE        harwood0\n"+
+		"STATUS      online\n"+
+		"LAST SEEN   2026-01-02 04:04:05\n"+
+		"REGISTERED  2026-01-02 03:04:05\n", out)
+}
+
+func TestDevicesGetNeverConnected(t *testing.T) {
+	useTempCredentials(t)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{
+		{Id: uuid.MustParse("7a2d2f9f-3b9f-4a1d-8e66-3b9e1d2c8f22"), Name: "garage-rover", Type: "harwood0", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.Local)},
+	})
+	devLogin(t, api.URL)
+
+	out, err := runRoot(t, "devices", "get", "7a2d2f9f-3b9f-4a1d-8e66-3b9e1d2c8f22", "--api-url", api.URL)
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "STATUS      offline\n")
+	assert.Contains(t, out, "LAST SEEN   never\n")
+}
+
+func TestDevicesGetJSON(t *testing.T) {
+	useTempCredentials(t)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{
+		{Id: uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11"), Name: "bench-rover", Type: "harwood0", CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)},
+	})
+	devLogin(t, api.URL)
+
+	out, err := runRoot(t, "devices", "get", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "--json", "--api-url", api.URL)
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11","name":"bench-rover","type":"harwood0",`+
+		`"created_at":"2026-01-02T03:04:05Z","online":false,"last_seen_at":null}`, out)
+}
+
+func TestDevicesGetNotFound(t *testing.T) {
+	useTempCredentials(t)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, nil)
+	devLogin(t, api.URL)
+
+	_, err := runRoot(t, "devices", "get", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "--api-url", api.URL)
+
+	assert.EqualError(t, err, "device 6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11 not found")
+}
+
+func TestDevicesGetInvalidID(t *testing.T) {
+	useTempCredentials(t)
+	api, requests := fakeDevicesAPIWithCount(t, apigen.DeviceRegistrationCode{}, nil)
+	devLogin(t, api.URL)
+
+	_, err := runRoot(t, "devices", "get", "not-a-uuid", "--api-url", api.URL)
+
+	assert.EqualError(t, err, `invalid device id "not-a-uuid": must be a UUID`)
+	assert.Zero(t, requests.Load(), "a bad id is rejected before any request")
 }

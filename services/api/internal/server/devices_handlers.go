@@ -35,6 +35,18 @@ func (s *Server) ListDevices(ctx context.Context, _ apigen.ListDevicesRequestObj
 	return res, nil
 }
 
+func (s *Server) GetDevice(ctx context.Context, req apigen.GetDeviceRequestObject) (apigen.GetDeviceResponseObject, error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d, err := s.devices.Get(ctx, p.UserID, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetDevice200JSONResponse(toDevice(d)), nil
+}
+
 func toDevice(d devices.Device) apigen.Device {
 	return apigen.Device{
 		Id:         d.ID,

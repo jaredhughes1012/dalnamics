@@ -16,6 +16,7 @@ import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
 import { Route as AuthedCliLoginRouteImport } from './routes/_authed/cli-login'
 import { Route as AuthedAppIndexRouteImport } from './routes/_authed/_app/index'
 import { Route as AuthedAppDevicesRouteImport } from './routes/_authed/_app/devices'
+import { Route as AuthedAppDevicesDeviceIdRouteImport } from './routes/_authed/_app/devices_.$deviceId'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -50,6 +51,12 @@ const AuthedAppDevicesRoute = AuthedAppDevicesRouteImport.update({
   path: '/devices',
   getParentRoute: () => AuthedAppRoute,
 } as any)
+const AuthedAppDevicesDeviceIdRoute =
+  AuthedAppDevicesDeviceIdRouteImport.update({
+    id: '/devices_/$deviceId',
+    path: '/devices/$deviceId',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedAppIndexRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/cli-login': typeof AuthedCliLoginRoute
   '/devices': typeof AuthedAppDevicesRoute
+  '/devices/$deviceId': typeof AuthedAppDevicesDeviceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AuthedAppIndexRoute
@@ -64,6 +72,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/cli-login': typeof AuthedCliLoginRoute
   '/devices': typeof AuthedAppDevicesRoute
+  '/devices/$deviceId': typeof AuthedAppDevicesDeviceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -74,12 +83,25 @@ export interface FileRoutesById {
   '/_authed/cli-login': typeof AuthedCliLoginRoute
   '/_authed/_app/devices': typeof AuthedAppDevicesRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
+  '/_authed/_app/devices_/$deviceId': typeof AuthedAppDevicesDeviceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/signup' | '/cli-login' | '/devices'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/cli-login'
+    | '/devices'
+    | '/devices/$deviceId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/signup' | '/cli-login' | '/devices'
+  to:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/cli-login'
+    | '/devices'
+    | '/devices/$deviceId'
   id:
     | '__root__'
     | '/_authed'
@@ -89,6 +111,7 @@ export interface FileRouteTypes {
     | '/_authed/cli-login'
     | '/_authed/_app/devices'
     | '/_authed/_app/'
+    | '/_authed/_app/devices_/$deviceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -148,17 +171,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAppDevicesRouteImport
       parentRoute: typeof AuthedAppRoute
     }
+    '/_authed/_app/devices_/$deviceId': {
+      id: '/_authed/_app/devices_/$deviceId'
+      path: '/devices/$deviceId'
+      fullPath: '/devices/$deviceId'
+      preLoaderRoute: typeof AuthedAppDevicesDeviceIdRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
   }
 }
 
 interface AuthedAppRouteChildren {
   AuthedAppDevicesRoute: typeof AuthedAppDevicesRoute
   AuthedAppIndexRoute: typeof AuthedAppIndexRoute
+  AuthedAppDevicesDeviceIdRoute: typeof AuthedAppDevicesDeviceIdRoute
 }
 
 const AuthedAppRouteChildren: AuthedAppRouteChildren = {
   AuthedAppDevicesRoute: AuthedAppDevicesRoute,
   AuthedAppIndexRoute: AuthedAppIndexRoute,
+  AuthedAppDevicesDeviceIdRoute: AuthedAppDevicesDeviceIdRoute,
 }
 
 const AuthedAppRouteWithChildren = AuthedAppRoute._addFileChildren(

@@ -37,6 +37,43 @@ func (q *Queries) DeleteExpiredDeviceRegistrationCodes(ctx context.Context) erro
 	return err
 }
 
+const getDeviceForUser = `-- name: GetDeviceForUser :one
+SELECT d.id, d.type, d.name, d.created_at,
+       coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
+FROM devicemgr.devices d
+LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
+WHERE d.id = $1 AND d.user_id = $2
+`
+
+type GetDeviceForUserParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+type GetDeviceForUserRow struct {
+	ID         uuid.UUID
+	Type       string
+	Name       string
+	CreatedAt  time.Time
+	Online     bool
+	LastSeenAt *time.Time
+}
+
+// Matches only the user's own devices, so another user's device looks unknown.
+func (q *Queries) GetDeviceForUser(ctx context.Context, arg GetDeviceForUserParams) (GetDeviceForUserRow, error) {
+	row := q.db.QueryRow(ctx, getDeviceForUser, arg.ID, arg.UserID)
+	var i GetDeviceForUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Online,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
 const listDevicesByUser = `-- name: ListDevicesByUser :many
 SELECT d.id, d.type, d.name, d.created_at,
        coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at

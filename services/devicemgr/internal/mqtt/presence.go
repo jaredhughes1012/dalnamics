@@ -9,26 +9,26 @@ import (
 	"dalnamics/services/devicemgr/internal/devices"
 )
 
-// Seer records that a device sent traffic.
+// Seer records a heartbeat from a device.
 type Seer interface {
 	MarkSeen(ctx context.Context, id uuid.UUID) error
 }
 
-// Presence marks devices online when they send traffic.
+// Presence marks devices online when they send heartbeats.
 type Presence struct {
 	devices Seer
 	logger  *slog.Logger
 }
 
-// NewPresence returns a Presence that records traffic with s.
+// NewPresence returns a Presence that records heartbeats with s.
 func NewPresence(s Seer, logger *slog.Logger) *Presence {
 	return &Presence{devices: s, logger: logger}
 }
 
-// Handle records a message a device published on topic. Any message on a
-// device's own topics counts; topics outside devices/{device id}/ are ignored.
+// Handle records a heartbeat a device published on topic. Topics other than
+// devices/{device id}/heartbeat are ignored.
 func (p *Presence) Handle(ctx context.Context, topic string) {
-	id, ok := devices.DeviceIDFromTopic(topic)
+	id, ok := devices.DeviceIDFromHeartbeatTopic(topic)
 	if !ok {
 		return
 	}

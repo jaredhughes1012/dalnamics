@@ -2,6 +2,7 @@ import asyncio
 import itertools
 import json
 import logging
+import math
 import stat
 from pathlib import Path
 from typing import Self
@@ -277,7 +278,7 @@ async def run_connected(broker: FakeBroker, heartbeat_s: float, seconds: float) 
     await platform.stop_platform(task)
 
 
-def test_heartbeat_on_connect_then_when_idle():
+def test_heartbeat_on_connect_then_every_interval():
     broker = FakeBroker()
 
     asyncio.run(run_connected(broker, heartbeat_s=0.1, seconds=0.25))
@@ -302,7 +303,7 @@ def test_heartbeat_sent_right_after_connecting():
     assert len(heartbeats(broker.client(STORED.device_id))) == 1
 
 
-def test_publishing_delays_the_next_heartbeat():
+def test_other_traffic_doesnt_delay_the_next_heartbeat():
     client = FakeClient(FakeBroker(), {"username": STORED.device_id})
 
     async def run():
@@ -310,14 +311,14 @@ def test_publishing_delays_the_next_heartbeat():
         task = asyncio.create_task(platform.heartbeat(link, 0.1))
         await asyncio.sleep(0.06)
         await link.publish("telemetry", '{"battery": 0.9}')
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.07)
         task.cancel()
 
     asyncio.run(run())
     topics = [topic.rsplit("/", 1)[1] for _, topic, _, _ in client.published]
     assert topics == ["heartbeat", "telemetry", "heartbeat"]
-    telemetry_at, heartbeat_at = client.published[1][0], client.published[2][0]
-    assert heartbeat_at - telemetry_at >= 0.099
+    first_at, next_at = client.published[0][0], client.published[2][0]
+    assert 0.09 <= next_at - first_at < 0.12
 
 
 def test_heartbeat_stops_on_drop_and_restarts_on_reconnect():
@@ -341,8 +342,8 @@ def test_heartbeat_stops_on_drop_and_restarts_on_reconnect():
     assert heartbeats(broker.clients[1]), "the new connection sends heartbeats"
 
 
-@pytest.mark.parametrize("interval", [0, -1])
-def test_non_positive_heartbeat_fails_startup(tmp_path, interval):
+@pytest.mark.parametrize("interval", [0, -1, math.nan, math.inf])
+def test_invalid_heartbeat_fails_startup(tmp_path, interval):
     platform.save_credentials(tmp_path / "state", STORED)
     broker = FakeBroker()
 

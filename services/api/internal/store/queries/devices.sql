@@ -17,7 +17,7 @@ SET id = gen_random_uuid(), user_id = EXCLUDED.user_id, expires_at = EXCLUDED.ex
 -- Reads devicemgr's schema, which the api may read but never writes. A device
 -- with no connectivity row has never connected, so it is offline.
 SELECT d.id, d.type, d.name, d.created_at,
-       coalesce(c.online, false)::boolean AS online, c.last_seen_at
+       coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
 FROM devicemgr.devices d
 LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
 WHERE d.user_id = @user_id

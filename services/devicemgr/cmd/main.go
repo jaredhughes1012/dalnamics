@@ -84,16 +84,6 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return err
 	}
 
-	// The first sweep waits a full offline threshold, so devices whose traffic
-	// was missed while devicemgr was down can report before being marked offline.
-	sweepCtx, stopSweep := context.WithCancel(context.Background())
-	defer stopSweep()
-	sweeperDone := make(chan struct{})
-	go func() {
-		defer close(sweeperDone)
-		devicesSvc.RunSweeper(sweepCtx, cfg.SweepInterval, cfg.OfflineAfter, logger)
-	}()
-
 	select {
 	case err := <-errc:
 		return err
@@ -107,8 +97,6 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("mqtt disconnect", "err", err)
 	}
 	stopMQTT()
-	stopSweep()
-	<-sweeperDone
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return err
 	}

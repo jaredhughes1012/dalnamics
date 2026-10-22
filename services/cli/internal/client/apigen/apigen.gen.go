@@ -89,11 +89,11 @@ type Device struct {
 	CreatedAt time.Time          `json:"created_at"`
 	Id        openapi_types.UUID `json:"id"`
 
-	// LastSeenAt When the device last sent MQTT traffic; null if it never has
+	// LastSeenAt When the device last sent a heartbeat; null if it never has
 	LastSeenAt *time.Time `json:"last_seen_at"`
 	Name       string     `json:"name"`
 
-	// Online Whether the device has sent MQTT traffic recently
+	// Online Whether the device has sent a heartbeat recently
 	Online bool `json:"online"`
 
 	// Type Kind of device, e.g. harwood0

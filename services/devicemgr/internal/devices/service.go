@@ -16,12 +16,16 @@ type Config struct {
 	// MQTTPassword is the broker password of devicemgr's own MQTT client,
 	// the broker superuser.
 	MQTTPassword []byte
-	// OfflineAfter is how long a device may stay silent before Sweep marks it
-	// offline.
+	// OfflineAfter is how long a device stays online after a heartbeat.
+	// Defaults to DefaultOfflineAfter.
 	OfflineAfter time.Duration
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
+
+// DefaultOfflineAfter is how long a device stays online after a heartbeat
+// unless Config.OfflineAfter says otherwise.
+const DefaultOfflineAfter = 90 * time.Second
 
 // Service implements device registration, broker authorization, and presence.
 type Service struct {
@@ -31,8 +35,11 @@ type Service struct {
 	now          func() time.Time
 
 	mu sync.Mutex
-	// seen is when this instance last wrote each device's presence.
+	// seen is when this instance last wrote, or started writing, each device's
+	// presence.
 	seen map[uuid.UUID]time.Time
+	// pruned is when seen was last pruned.
+	pruned time.Time
 }
 
 // NewService returns a Service backed by q.
@@ -46,6 +53,9 @@ func NewService(q store.Querier, cfg Config) *Service {
 	}
 	if s.now == nil {
 		s.now = time.Now
+	}
+	if s.offlineAfter <= 0 {
+		s.offlineAfter = DefaultOfflineAfter
 	}
 	return s
 }

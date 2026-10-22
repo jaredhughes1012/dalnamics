@@ -16,11 +16,11 @@ type Querier interface {
 	// already redeemed is still returned; CreateDevice rejects its reuse.
 	GetActiveRegistrationCode(ctx context.Context, codeHash []byte) (GetActiveRegistrationCodeRow, error)
 	GetDeviceSecretHash(ctx context.Context, id uuid.UUID) ([]byte, error)
-	// Marks a device online. Inserts only for a known device, so an unknown ID is a
-	// no-op. Skips the write while the row is already online and was seen within
-	// min_interval_seconds, which bounds writes across devicemgr instances.
+	// Records a heartbeat: the device is online for offline_after_seconds from now.
+	// Inserts only for a known device, so an unknown ID is a no-op. Skips a row
+	// seen within min_interval_seconds, which bounds writes across devicemgr
+	// instances.
 	MarkDeviceSeen(ctx context.Context, arg MarkDeviceSeenParams) (int64, error)
-	MarkStaleDevicesOffline(ctx context.Context, offlineAfterSeconds float64) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

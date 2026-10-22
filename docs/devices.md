@@ -23,10 +23,10 @@ Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configur
 | `name` | 1–100 characters; defaults to `type` |
 | `secret_hash` | SHA-256 of the device's secret, its MQTT password |
 | `registration_code_id` | The code the device redeemed; unique |
-| `online` | Whether the device has sent MQTT traffic recently ([Connectivity](#connectivity)) |
-| `last_seen_at` | When devicemgr last recorded traffic from the device; null if it never connected |
+| `online` | Whether the device has sent a heartbeat recently ([Connectivity](#connectivity)) |
+| `last_seen_at` | When devicemgr last recorded a heartbeat from the device; null if it never connected |
 
-Devices live in `devicemgr.devices`, and their connectivity (`online`, `last_seen_at`) in `devicemgr.device_connectivity`, one row per device from its first message. Registration codes live in the api's `public.device_registration_codes`.
+Devices live in `devicemgr.devices`, and their connectivity in `devicemgr.device_connectivity`, one row per device from its first heartbeat. That row stores `last_seen_at` and `online_until`, and the api derives `online` as `online_until > now()`. Registration codes live in the api's `public.device_registration_codes`.
 
 ## Registration
 
@@ -79,7 +79,7 @@ Registering a local device through studio on every fresh database slows down dev
 
 ### Handshake
 
-The request goes to `devices/register/{client id}`, and the reply comes back on `devices/register/{client id}/reply`. Messages are JSON at QoS 1. The device subscribes to the reply topic before publishing, so it can't miss the reply. devicemgr reads requests through its one shared subscription, `$share/devicemgr/devices/#`, so each request is handled by exactly one devicemgr instance. It routes by topic: `devices/register/{client id}` goes to the handshake and everything else to [presence](#connectivity). Because it's a single subscription, each message arrives once and a request is never redeemed twice. devicemgr also receives its own replies, which have one topic level too many to be a request, and ignores them.
+The request goes to `devices/register/{client id}`, and the reply comes back on `devices/register/{client id}/reply`. Messages are JSON at QoS 1. The device subscribes to the reply topic before publishing, so it can't miss the reply. devicemgr reads requests through the shared subscription `$share/devicemgr/devices/register/+`, so each request is handled by exactly one devicemgr instance. Its replies have one topic level too many to match, so devicemgr never receives them. devicemgr also holds a shared subscription for [heartbeats](#connectivity), `$share/devicemgr/devices/+/heartbeat`. The request of a client named `heartbeat` matches both filters and arrives twice, so each subscription carries its own MQTT subscription identifier, and devicemgr routes by that identifier, not by topic. The request is redeemed once.
 
 | Message | Payload |
 |---|---|
@@ -107,7 +107,7 @@ Everything else is denied, including wildcard subscriptions that reach outside a
 
 ## Connectivity
 
-Users want to know which of their devices are reachable. A device counts as online while it keeps sending MQTT traffic, and goes offline once it has been silent past a threshold. Online is recorded on demand from traffic, and offline is recorded by a sweep. Studio shows a green or gray dot beside each device's name, and `cli devices list` has a STATUS column.
+Users want to know which of their devices are reachable. A device counts as online while it keeps sending heartbeats, and goes offline once it has missed them for a threshold. Each heartbeat records an expiry, and the device is online until that expiry passes. No process has to mark it offline. Studio shows a green or gray dot beside each device's name, and `cli devices list` has a STATUS column.
 
 ```mermaid
 sequenceDiagram
@@ -117,23 +117,18 @@ sequenceDiagram
     participant DB as Postgres
     participant U as User (studio or cli)
     participant API as api
-    D->>B: PUBLISH devices/{id}/... (any message, or a heartbeat)
-    B->>DM: deliver (shared subscription devices/#)
+    D->>B: PUBLISH devices/{id}/heartbeat (every heartbeat interval)
+    B->>DM: deliver (shared subscription devices/+/heartbeat)
     DM->>DM: skip if this instance wrote the device within the throttle window
-    DM->>DB: upsert device_connectivity online, last_seen_at = now()
-    loop every DEVICEMGR_SWEEP_INTERVAL, after a startup grace of DEVICEMGR_OFFLINE_AFTER
-        DM->>DB: set online = false where last_seen_at < now() - DEVICEMGR_OFFLINE_AFTER
-    end
+    DM->>DB: upsert device_connectivity last_seen_at = now(), online_until = now() + DEVICEMGR_OFFLINE_AFTER
     U->>API: GET /devices (studio polls every VITE_DEVICES_REFRESH_MS)
     API->>DB: devicemgr.devices LEFT JOIN device_connectivity
-    API-->>U: online, last_seen_at per device
+    API-->>U: online (online_until > now()), last_seen_at per device
 ```
 
-- **Offline by default:** a device with no connectivity row has never connected, so it is offline with `last_seen_at` null. The row is created by the device's first message, and only for a device that exists; traffic from an unknown ID is ignored.
-- **Any traffic counts:** every message a device publishes under `devices/{device id}/` marks it online, so a device that is already busy needs no extra messages. The broker authentication endpoints stay free of side effects; a connection alone doesn't mark a device online.
-- **Heartbeat:** a device that has sent nothing for a while publishes an empty, unretained QoS 0 message to `devices/{device id}/heartbeat`. It also sends one right after each connect, which is how the platform learns it has connected. devicemgr gives the topic no special meaning: it is simply traffic. harwood0 sends one every `HARWOOD0_PLATFORM_HEARTBEAT_S` of silence ([harwood0 architecture](../harwood0/docs/architecture.md)).
-- **Throttled writes:** presence is a hot, narrow row, so it lives apart from `devicemgr.devices` and never bumps that table's `updated_at`. Each devicemgr instance remembers when it last wrote each device, in memory, and writes at most once per throttle window of `DEVICEMGR_OFFLINE_AFTER / 3` (30 s by default). The upsert also skips a row that is already online and was seen within the window, so several instances add at most a few redundant writes. No shared cache is needed.
-- **Why the throttle can't hide a device coming back:** the window is shorter than the offline threshold, so a row the sweep marked offline is always older than the window, and the device's next message always writes. A device's heartbeat interval plus the throttle window must stay under `DEVICEMGR_OFFLINE_AFTER`, or a healthy idle device could be swept. The defaults are 30 s + 30 s < 90 s.
-- **Offline by sweep:** every `DEVICEMGR_SWEEP_INTERVAL`, devicemgr marks offline every online device whose `last_seen_at` is older than `DEVICEMGR_OFFLINE_AFTER`. Both the upsert and the sweep use the database clock, so clock skew between instances doesn't matter. Every instance sweeps, which is safe because the update is idempotent. The sweep also drops in-memory entries older than the threshold, which bounds the cache. Offline therefore lags a device's last message by `DEVICEMGR_OFFLINE_AFTER` to `DEVICEMGR_OFFLINE_AFTER + DEVICEMGR_SWEEP_INTERVAL`.
-- **Catch-up after an outage:** the sweep compares stored timestamps and keeps no state, so after a crash or outage its first run corrects whatever went stale. That first run waits `DEVICEMGR_OFFLINE_AFTER` after startup, so devices whose traffic was missed while devicemgr was down get a chance to report before they're marked offline. Devices that are truly gone go offline once the grace period ends.
-- **Freshness in studio:** the Devices page refetches the list every [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) while it's open: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page.
+- **Offline by default:** a device with no connectivity row has never connected, so it is offline with `last_seen_at` null. The device's first heartbeat creates the row, and only for a device that exists; a heartbeat from an unknown ID is ignored.
+- **Heartbeats only:** a device publishes an empty, unretained QoS 0 message to `devices/{device id}/heartbeat` right after each connect and then on a fixed interval, whatever else it sends. devicemgr subscribes to heartbeats and nothing else a device sends, so telemetry and other high-rate traffic never reach it and can't crowd out registration requests. A connection alone doesn't mark a device online, and the broker authentication endpoints have no side effects. harwood0 sends one every `HARWOOD0_PLATFORM_HEARTBEAT_S` ([harwood0 architecture](../harwood0/docs/architecture.md)).
+- **Offline by expiry:** each heartbeat sets `online_until` to `DEVICEMGR_OFFLINE_AFTER` past the database clock. The api compares it with `now()` when it reads, so a device goes offline on time even while devicemgr is down, and nothing has to sweep or catch up after an outage. Clock skew between instances doesn't matter, because only the database clock is used.
+- **Throttled writes:** presence is a hot, narrow row, so it lives apart from `devicemgr.devices` and never bumps that table's `updated_at`. Each devicemgr instance remembers, in memory, when it last wrote each device. It writes at most once per throttle window of `DEVICEMGR_OFFLINE_AFTER / 6` (15 s by default), and it reserves a write before making it, so a burst of messages from one device writes once. If nothing was written, the entry is dropped so the next heartbeat retries. That covers a failed write, an unknown device, and a row another instance wrote within the window. The upsert also skips a row written within the window, so several instances add at most a few redundant writes. No shared cache is needed. Entries older than the window are pruned once per `DEVICEMGR_OFFLINE_AFTER`.
+- **Heartbeat interval:** keep a device's heartbeat interval at most `DEVICEMGR_OFFLINE_AFTER / 3` (30 s by default). The interval is then twice the throttle window, so no heartbeat is throttled away, and a device stays online through two lost heartbeats.
+- **Freshness in studio:** the Devices page refetches the list [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) after the previous fetch finishes: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page. A response that arrives after a newer one is dropped. A hidden tab skips refreshes and refreshes as soon as it's shown again. While refreshes fail, each device's dot shows as unknown next to the error, so an old status never passes for a current one.

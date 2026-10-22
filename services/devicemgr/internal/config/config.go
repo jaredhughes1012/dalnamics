@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"dalnamics/services/devicemgr/internal/devices"
 )
 
 // Config is devicemgr's runtime configuration.
@@ -23,20 +25,14 @@ type Config struct {
 	// MQTTPassword is devicemgr's broker password as the superuser
 	// "devicemgr" (DEVICEMGR_MQTT_PASSWORD, at least 32 bytes).
 	MQTTPassword []byte
-	// OfflineAfter is how long a device may stay silent before the sweep marks
-	// it offline (DEVICEMGR_OFFLINE_AFTER, a Go duration, default 90s).
+	// OfflineAfter is how long a device stays online after a heartbeat
+	// (DEVICEMGR_OFFLINE_AFTER, a Go duration, default 90s).
 	OfflineAfter time.Duration
-	// SweepInterval is how often the sweep runs (DEVICEMGR_SWEEP_INTERVAL, a
-	// Go duration, default 15s, at most OfflineAfter).
-	SweepInterval time.Duration
 }
 
 const (
 	minTokenLen        = 32
 	minMQTTPasswordLen = 32
-
-	defaultOfflineAfter  = 90 * time.Second
-	defaultSweepInterval = 15 * time.Second
 )
 
 // Load reads the configuration using getenv (typically os.Getenv).
@@ -74,18 +70,11 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, fmt.Errorf("DEVICEMGR_MQTT_PASSWORD must be at least %d bytes", minMQTTPasswordLen))
 	}
 
-	offlineAfter, err := duration(getenv, "DEVICEMGR_OFFLINE_AFTER", defaultOfflineAfter)
+	offlineAfter, err := duration(getenv, "DEVICEMGR_OFFLINE_AFTER", devices.DefaultOfflineAfter)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	sweepInterval, err := duration(getenv, "DEVICEMGR_SWEEP_INTERVAL", defaultSweepInterval)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	if offlineAfter > 0 && sweepInterval > offlineAfter {
-		errs = append(errs, errors.New("DEVICEMGR_SWEEP_INTERVAL must not exceed DEVICEMGR_OFFLINE_AFTER"))
-	}
-	cfg.OfflineAfter, cfg.SweepInterval = offlineAfter, sweepInterval
+	cfg.OfflineAfter = offlineAfter
 
 	return cfg, errors.Join(errs...)
 }

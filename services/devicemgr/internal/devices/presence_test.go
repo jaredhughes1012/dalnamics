@@ -3,9 +3,7 @@ package devices
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,8 +32,10 @@ func newPresenceService(t *testing.T) (*Service, *mockstore.MockQuerier, *clock)
 }
 
 func expectSeen(q *mockstore.MockQuerier, id uuid.UUID) *gomock.Call {
-	// The throttle window is a third of the offline threshold.
-	return q.EXPECT().MarkDeviceSeen(gomock.Any(), storedevices.MarkDeviceSeenParams{DeviceID: id, MinIntervalSeconds: 30}).Return(int64(1), nil)
+	// Online for the offline threshold; the throttle window is a sixth of it.
+	return q.EXPECT().MarkDeviceSeen(gomock.Any(), storedevices.MarkDeviceSeenParams{
+		DeviceID: id, OfflineAfterSeconds: 90, MinIntervalSeconds: 15,
+	}).Return(int64(1), nil)
 }
 
 func TestMarkSeenWritesOncePerWindow(t *testing.T) {
@@ -44,12 +44,24 @@ func TestMarkSeenWritesOncePerWindow(t *testing.T) {
 	expectSeen(q, id).Times(1)
 
 	require.NoError(t, s.MarkSeen(context.Background(), id))
-	c.advance(29 * time.Second)
+	c.advance(14 * time.Second)
 	require.NoError(t, s.MarkSeen(context.Background(), id), "within the window: no write")
 
 	expectSeen(q, id).Times(1)
 	c.advance(time.Second)
 	require.NoError(t, s.MarkSeen(context.Background(), id), "the window has passed: writes again")
+}
+
+func TestMarkSeenWritesEveryHeartbeat(t *testing.T) {
+	s, q, c := newPresenceService(t)
+	id := uuid.New()
+	expectSeen(q, id).Times(4)
+
+	// Heartbeats every offlineAfter/3, the most a device may wait, all write.
+	for range 4 {
+		require.NoError(t, s.MarkSeen(context.Background(), id))
+		c.advance(testOfflineAfter / 3)
+	}
 }
 
 func TestMarkSeenThrottlesPerDevice(t *testing.T) {
@@ -61,6 +73,38 @@ func TestMarkSeenThrottlesPerDevice(t *testing.T) {
 	require.NoError(t, s.MarkSeen(context.Background(), a))
 	require.NoError(t, s.MarkSeen(context.Background(), b))
 	require.NoError(t, s.MarkSeen(context.Background(), a))
+}
+
+func TestMarkSeenWritesOnceForConcurrentHeartbeats(t *testing.T) {
+	s, q, _ := newPresenceService(t)
+	id := uuid.New()
+	release := make(chan struct{})
+	q.EXPECT().MarkDeviceSeen(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(context.Context, storedevices.MarkDeviceSeenParams) (int64, error) {
+			<-release
+			return 1, nil
+		}).Times(1)
+
+	var wg sync.WaitGroup
+	first := make(chan error, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		first <- s.MarkSeen(context.Background(), id)
+	}()
+	// Wait until the first write is in flight, then send more heartbeats.
+	require.Eventually(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, ok := s.seen[id]
+		return ok
+	}, time.Second, time.Millisecond)
+	for range 5 {
+		require.NoError(t, s.MarkSeen(context.Background(), id), "skipped while the first write is in flight")
+	}
+	close(release)
+	wg.Wait()
+	require.NoError(t, <-first)
 }
 
 func TestMarkSeenRetriesAfterFailedWrite(t *testing.T) {
@@ -75,103 +119,51 @@ func TestMarkSeenRetriesAfterFailedWrite(t *testing.T) {
 	require.NoError(t, s.MarkSeen(context.Background(), id), "a failed write isn't cached")
 }
 
-func TestSweep(t *testing.T) {
+func TestMarkSeenRetriesAfterSkippedWrite(t *testing.T) {
 	s, q, _ := newPresenceService(t)
-	q.EXPECT().MarkStaleDevicesOffline(gomock.Any(), float64(90)).Return(int64(3), nil)
+	id := uuid.New()
+	// Another instance wrote the row within the window, so nothing changed.
+	q.EXPECT().MarkDeviceSeen(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 
-	n, err := s.Sweep(context.Background())
+	require.NoError(t, s.MarkSeen(context.Background(), id))
 
-	require.NoError(t, err)
-	assert.Equal(t, int64(3), n)
+	expectSeen(q, id).Times(1)
+	require.NoError(t, s.MarkSeen(context.Background(), id), "a skipped write isn't cached")
 }
 
-func TestSweepError(t *testing.T) {
-	s, q, _ := newPresenceService(t)
-	boom := errors.New("db down")
-	q.EXPECT().MarkStaleDevicesOffline(gomock.Any(), gomock.Any()).Return(int64(0), boom)
-
-	_, err := s.Sweep(context.Background())
-	assert.ErrorIs(t, err, boom)
-}
-
-func TestSweepPrunesOldCacheEntries(t *testing.T) {
+func TestMarkSeenPrunesOldCacheEntries(t *testing.T) {
 	s, q, c := newPresenceService(t)
 	old, recent := uuid.New(), uuid.New()
 	expectSeen(q, old).Times(1)
 	expectSeen(q, recent).Times(1)
-	q.EXPECT().MarkStaleDevicesOffline(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 
 	require.NoError(t, s.MarkSeen(context.Background(), old))
 	c.advance(testOfflineAfter)
 	require.NoError(t, s.MarkSeen(context.Background(), recent))
-	c.advance(time.Second)
-	_, err := s.Sweep(context.Background())
-	require.NoError(t, err)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	assert.NotContains(t, s.seen, old, "older than the offline threshold")
+	assert.NotContains(t, s.seen, old, "older than the throttle window")
 	assert.Contains(t, s.seen, recent)
 }
 
-func TestRunSweeper(t *testing.T) {
-	q := mockstore.NewMockQuerier(gomock.NewController(t))
-	s := NewService(q, Config{OfflineAfter: testOfflineAfter})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	var sweeps atomic.Int32
-	swept := make(chan struct{}, 10)
-	q.EXPECT().MarkStaleDevicesOffline(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, float64) (int64, error) {
-		sweeps.Add(1)
-		swept <- struct{}{}
-		return 1, nil
-	}).AnyTimes()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	start := time.Now()
-	go func() {
-		s.RunSweeper(ctx, 20*time.Millisecond, 100*time.Millisecond, logger)
-		close(done)
-	}()
-
-	<-swept
-	assert.GreaterOrEqual(t, time.Since(start), 100*time.Millisecond, "the first sweep waits out the grace period")
-	<-swept
-	<-swept
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("RunSweeper didn't stop when ctx was cancelled")
-	}
-	n := sweeps.Load()
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, n, sweeps.Load(), "no sweeps after it stops")
+func TestNewServiceDefaultsOfflineAfter(t *testing.T) {
+	s := NewService(mockstore.NewMockQuerier(gomock.NewController(t)), Config{})
+	assert.Equal(t, DefaultOfflineAfter, s.offlineAfter)
 }
 
-func TestRunSweeperStopsDuringGrace(t *testing.T) {
-	q := mockstore.NewMockQuerier(gomock.NewController(t))
-	s := NewService(q, Config{OfflineAfter: testOfflineAfter})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// No sweep is expected: the mock fails the test if one runs.
-	s.RunSweeper(ctx, time.Millisecond, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
-}
-
-func TestDeviceIDFromTopic(t *testing.T) {
+func TestDeviceIDFromHeartbeatTopic(t *testing.T) {
 	id := uuid.New()
 	for topic, want := range map[string]bool{
-		"devices/" + id.String() + "/heartbeat": true,
-		"devices/" + id.String() + "/a/b":       true,
-		"devices/register/x":                    false,
-		"devices/not-a-uuid/x":                  false,
-		"devices/" + id.String():                false,
-		"devices/" + id.String() + "/":          false,
-		"other/" + id.String() + "/x":           false,
+		HeartbeatTopic(id):                        true,
+		"devices/" + id.String() + "/a/heartbeat": false,
+		"devices/" + id.String() + "/telemetry":   false,
+		"devices/register/heartbeat":              false,
+		"devices/not-a-uuid/heartbeat":            false,
+		"devices/" + id.String():                  false,
+		"other/" + id.String() + "/heartbeat":     false,
 	} {
-		got, ok := DeviceIDFromTopic(topic)
+		got, ok := DeviceIDFromHeartbeatTopic(topic)
 		assert.Equal(t, want, ok, topic)
 		if want {
 			assert.Equal(t, id, got, topic)

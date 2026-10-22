@@ -43,24 +43,6 @@ func ReplyTopic(topic string) string {
 	return topic + "/reply"
 }
 
-// DeviceIDFromTopic returns the device ID in a device's own topic,
-// devices/{device id}/..., and reports whether topic is one.
-func DeviceIDFromTopic(topic string) (uuid.UUID, bool) {
-	rest, ok := strings.CutPrefix(topic, "devices/")
-	if !ok {
-		return uuid.Nil, false
-	}
-	idPart, sub, ok := strings.Cut(rest, "/")
-	if !ok || sub == "" {
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(idPart)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
 // CheckUser reports whether the broker should accept a connection with these
 // credentials.
 func (s *Service) CheckUser(ctx context.Context, username, password string) (bool, error) {

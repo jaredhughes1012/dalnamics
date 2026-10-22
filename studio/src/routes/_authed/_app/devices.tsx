@@ -22,10 +22,26 @@ function Devices() {
   const { status, devices, error, load } = useDevicesStore()
   const [registering, setRegistering] = useState(false)
 
+  // Each refresh is scheduled after the previous one finishes, so slow
+  // requests never pile up. A hidden tab skips refreshes and catches up as
+  // soon as it's shown again.
   useEffect(() => {
-    void load()
-    const refresh = setInterval(() => void load(), REFRESH_MS)
-    return () => clearInterval(refresh)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
+    const refresh = async () => {
+      if (!document.hidden) await load()
+      if (!stopped) timer = setTimeout(() => void refresh(), REFRESH_MS)
+    }
+    const onVisibilityChange = () => {
+      if (!document.hidden) void load()
+    }
+    void refresh()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [load])
 
   return (
@@ -62,7 +78,7 @@ function Devices() {
                   <tr key={d.id} className="border-b last:border-0">
                     <td className="px-6 py-3 font-medium">
                       <span className="flex items-center gap-2">
-                        <DeviceStatus device={d} />
+                        <DeviceStatus device={d} stale={status === 'error'} />
                         {d.name}
                       </span>
                     </td>

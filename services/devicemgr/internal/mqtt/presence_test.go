@@ -37,7 +37,7 @@ func TestPresenceMarksDeviceSeen(t *testing.T) {
 
 func TestPresenceIgnoresOtherTopics(t *testing.T) {
 	id := uuid.NewString()
-	for _, topic := range []string{"devices/register/c1", "devices/not-a-uuid/x", "devices/" + id, "other/" + id + "/x"} {
+	for _, topic := range []string{"devices/register/heartbeat", "devices/not-a-uuid/heartbeat", "devices/" + id, "devices/" + id + "/x", "other/" + id + "/heartbeat"} {
 		s := &fakeSeer{}
 		NewPresence(s, discard()).Handle(context.Background(), topic)
 		assert.Empty(t, s.seen, topic)
@@ -47,7 +47,7 @@ func TestPresenceIgnoresOtherTopics(t *testing.T) {
 func TestPresenceSurvivesStoreErrors(t *testing.T) {
 	s := &fakeSeer{err: errors.New("db down")}
 
-	NewPresence(s, discard()).Handle(context.Background(), "devices/"+uuid.NewString()+"/x")
+	NewPresence(s, discard()).Handle(context.Background(), "devices/"+uuid.NewString()+"/heartbeat")
 
 	assert.Len(t, s.seen, 1)
 }
@@ -62,28 +62,47 @@ func TestRouteRegistrationToHandshake(t *testing.T) {
 	rt, r, s := newRouter()
 	pub := &fakePublisher{}
 
-	rt.route(context.Background(), pub, "devices/register/c1", []byte(`{"code":"AB3D7K","type":"harwood0"}`))
+	rt.route(context.Background(), pub, registerSubID, "devices/register/c1", []byte(`{"code":"AB3D7K","type":"harwood0"}`))
 
 	assert.Equal(t, "AB3D7K", r.got.Code)
-	require.Len(t, pub.published, 1, "the request is redeemed exactly once")
-	assert.Empty(t, s.seen)
-
-	// devicemgr's reply comes back on the same subscription and is ignored.
-	r.got = devices.Request{}
-	rt.route(context.Background(), pub, pub.published[0].Topic, pub.published[0].Payload)
-	assert.Empty(t, r.got.Code)
-	assert.Len(t, pub.published, 1)
+	require.Len(t, pub.published, 1)
 	assert.Empty(t, s.seen)
 }
 
-func TestRouteDeviceTrafficToPresence(t *testing.T) {
+func TestRouteHeartbeatToPresence(t *testing.T) {
 	rt, r, s := newRouter()
 	pub := &fakePublisher{}
 	id := uuid.New()
 
-	rt.route(context.Background(), pub, "devices/"+id.String()+"/heartbeat", nil)
+	rt.route(context.Background(), pub, heartbeatSubID, devices.HeartbeatTopic(id), nil)
 
 	assert.Equal(t, []uuid.UUID{id}, s.seen)
 	assert.Empty(t, r.got.Code)
 	assert.Empty(t, pub.published)
+}
+
+func TestRouteRedeemsOverlappingTopicOnce(t *testing.T) {
+	rt, r, s := newRouter()
+	pub := &fakePublisher{}
+	// A register client named "heartbeat" matches both subscriptions, so its
+	// request arrives on each.
+	req := []byte(`{"code":"AB3D7K","type":"harwood0"}`)
+
+	rt.route(context.Background(), pub, registerSubID, "devices/register/heartbeat", req)
+	rt.route(context.Background(), pub, heartbeatSubID, "devices/register/heartbeat", req)
+
+	assert.Equal(t, "AB3D7K", r.got.Code)
+	assert.Len(t, pub.published, 1, "the request is redeemed exactly once")
+	assert.Empty(t, s.seen)
+}
+
+func TestRouteDropsUnknownSubscriptions(t *testing.T) {
+	rt, r, s := newRouter()
+	pub := &fakePublisher{}
+
+	rt.route(context.Background(), pub, 0, "devices/register/c1", []byte(`{"code":"AB3D7K","type":"harwood0"}`))
+
+	assert.Empty(t, r.got.Code)
+	assert.Empty(t, pub.published)
+	assert.Empty(t, s.seen)
 }

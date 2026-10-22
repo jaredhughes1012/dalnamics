@@ -3,14 +3,14 @@
 A robot registers once with a one-time code (HARWOOD0_REGISTRATION_CODE) through an MQTT
 handshake with devicemgr, which replies with a device ID and secret. The robot stores them
 in device.json and connects as the device from then on. While connected it publishes a
-heartbeat whenever it has sent nothing for HARWOOD0_PLATFORM_HEARTBEAT_S, so the platform
-keeps showing it online. See docs/devices.md in the repo root for the platform side.
+heartbeat every HARWOOD0_PLATFORM_HEARTBEAT_S, so the platform keeps showing it online. See docs/devices.md in the repo root for the platform side.
 """
 
 import asyncio
 import contextlib
 import json
 import logging
+import math
 import os
 import secrets
 from collections.abc import Callable
@@ -147,35 +147,27 @@ async def register(
 
 
 class DeviceLink:
-    """The device's open MQTT session. Every device publish goes through publish(), which
-    records when the device last sent anything, so heartbeats fill only the silences."""
+    """The device's open MQTT session. Every device publish goes through publish()."""
 
     def __init__(self, client: aiomqtt.Client, device_id: str) -> None:
         self._client = client
         self.device_id = device_id
-        # Event loop time of the last publish.
-        self.last_publish = float("-inf")
 
     async def publish(self, subtopic: str, payload: bytes | str = b"", qos: int = 0) -> None:
         """Publishes to devices/{device id}/{subtopic}."""
         await self._client.publish(f"devices/{self.device_id}/{subtopic}", payload, qos=qos)
-        self.last_publish = asyncio.get_running_loop().time()
 
 
 async def heartbeat(link: DeviceLink, interval_s: float) -> None:
-    """Publishes a heartbeat now, then whenever the link has been silent for interval_s.
+    """Publishes a heartbeat now, then every interval_s.
 
-    The platform counts any message as a sign of life (docs/devices.md#connectivity), so
-    the heartbeat is an empty, unretained QoS 0 message.
+    The platform counts only heartbeats as a sign of life (docs/devices.md#connectivity),
+    so they go out on schedule whatever else the device sends. Each is an empty,
+    unretained QoS 0 message.
     """
-    loop = asyncio.get_running_loop()
-    await link.publish("heartbeat")
     while True:
-        wait = link.last_publish + interval_s - loop.time()
-        if wait > 0:
-            await asyncio.sleep(wait)
-        else:
-            await link.publish("heartbeat")
+        await link.publish("heartbeat")
+        await asyncio.sleep(interval_s)
 
 
 async def _drain(client: aiomqtt.Client) -> None:
@@ -240,14 +232,14 @@ async def start_platform(
     """Joins the platform, registering first if needed, and returns the connection task.
 
     Returns None when HARWOOD0_MQTT_URL is unset. Raises PlatformError when the heartbeat
-    interval isn't positive, when the robot has no credentials and no code, when
+    interval isn't a positive number, when the robot has no credentials and no code, when
     registration fails, or when the broker rejects the stored credentials.
     """
     if not settings.mqtt_url:
         return None
-    if settings.platform_heartbeat_s <= 0:
+    if not (math.isfinite(settings.platform_heartbeat_s) and settings.platform_heartbeat_s > 0):
         raise PlatformError(
-            "HARWOOD0_PLATFORM_HEARTBEAT_S must be greater than 0, not "
+            "HARWOOD0_PLATFORM_HEARTBEAT_S must be a number greater than 0, not "
             f"{settings.platform_heartbeat_s:g}"
         )
 

@@ -96,6 +96,85 @@ describe('devices', () => {
     expect(loads()).toBe(initial + 1)
   })
 
+  it('waits for a slow refresh before scheduling the next one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    let slow = false
+    const spy = mockApi({
+      'GET /devices': async () => {
+        if (slow) await new Promise((r) => setTimeout(r, 20_000))
+        return Response.json([garage])
+      },
+    })
+    renderRoute('/devices')
+    await screen.findByRole('row', { name: /garage-rover/ })
+    const loads = () => requestsOf(spy).filter((r) => r === 'GET /devices').length
+    const initial = loads()
+
+    slow = true
+    await advance(15_000)
+    expect(loads()).toBe(initial + 1)
+    slow = false
+    await advance(19_000)
+    expect(loads(), 'no new request while one is in flight').toBe(initial + 1)
+
+    await advance(1_000 + 15_000)
+    expect(loads()).toBe(initial + 2)
+  })
+
+  describe('while the tab is hidden', () => {
+    let hidden = false
+    beforeEach(() => {
+      hidden = false
+      vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden)
+    })
+    afterEach(() => vi.restoreAllMocks())
+
+    it('skips refreshes and refreshes as soon as it is shown', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      await signIn()
+      const spy = mockApi({ 'GET /devices': () => Response.json([garage]) })
+      renderRoute('/devices')
+      await screen.findByRole('row', { name: /garage-rover/ })
+      const loads = () => requestsOf(spy).filter((r) => r === 'GET /devices').length
+      const initial = loads()
+
+      hidden = true
+      await advance(60_000)
+      expect(loads()).toBe(initial)
+
+      hidden = false
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(loads()).toBe(initial + 1)
+    })
+  })
+
+  it('shows status as unknown while refreshes fail', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    let failing = false
+    mockApi({
+      'GET /devices': () =>
+        failing ? Response.json({ code: 'internal', message: 'internal server error' }, { status: 500 }) : Response.json([bench]),
+    })
+    renderRoute('/devices')
+    const row = await screen.findByRole('row', { name: /bench-rover/ })
+    expect(within(row).getByRole('img', { name: 'Online' })).toBeInTheDocument()
+
+    failing = true
+    await advance(15_000)
+    expect(await screen.findByText('internal server error')).toBeInTheDocument()
+    const unknown = within(screen.getByRole('row', { name: /bench-rover/ })).getByRole('img', { name: 'Status unknown' })
+    expect(unknown).not.toHaveClass('bg-green-500')
+    expect(unknown.title).toMatch(/^Couldn’t refresh status\. Last seen /)
+
+    failing = false
+    await advance(15_000)
+    expect(await within(screen.getByRole('row', { name: /bench-rover/ })).findByRole('img', { name: 'Online' })).toBeInTheDocument()
+  })
+
   it('shows an empty state', async () => {
     await signIn()
     mockApi({ 'GET /devices': () => Response.json([]) })

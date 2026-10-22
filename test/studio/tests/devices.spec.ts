@@ -53,7 +53,7 @@ test.describe('connectivity', () => {
     await expect(status).toHaveAttribute('title', 'Never connected')
   })
 
-  test('traffic from a device shows it as online', async ({ page }) => {
+  test('a heartbeat from a device shows it as online', async ({ page }) => {
     const name = uniqueDeviceName()
     const reply = await registerInStudio(page, name)
 

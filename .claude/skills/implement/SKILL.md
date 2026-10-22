@@ -48,7 +48,7 @@ The developer is refining other work while this runs. Ask every question during 
    - Unit tests for every behavior and error path (Go: testify and gomock; studio: Vitest via `renderRoute` and `mockApi`).
    - Playwright e2e tests in `test/studio` for every user-facing flow in the acceptance criteria.
 6. **Update the docs** listed in the plan, following `docs/CONTRIBUTION.md`.
-7. **Validate locally** with the same checks CI runs: `make generate` (confirm it leaves no diff), then `make lint`, `make test`, `make test-e2e`, and `make build`. Fix failures and rerun until all pass. If something can't pass, don't hide it; report it in step 10 and in the PR.
+7. **Validate locally** with the same checks CI runs: `make generate` (confirm it leaves no diff), then `make lint`, `make test`, `make test-e2e`, and `make build`. Playwright reuses a stack that is already running, so run `./run_local.sh` in the worktree before `make test-e2e` (it stops any colliding stack and starts the worktree's), and `./cleanup_local.sh` once e2e passes. Fix failures and rerun until all pass. If something can't pass, don't hide it; report it in step 10 and in the PR.
 8. **Self-review:** read the full diff against `origin/main`. Check it against each acceptance criterion, look for leftover debug code, and confirm generated files were regenerated rather than hand-edited.
 9. **Ship:**
    - Commit with a message that summarizes the change and ends with `Closes #$ARGUMENTS`.
@@ -62,18 +62,18 @@ The developer is refining other work while this runs. Ask every question during 
     - Watch again.
 
     Repeat until every check passes. If it still can't pass, report the failing check and why; don't call the work done.
-11. **Report** in the terminal:
-    - The branch name and worktree path, with how to switch to them: `git switch <branch>` from the main checkout once the worktree is removed, or `cd <worktree path>`.
+11. **Report** in the terminal, in this order:
+    - The branch name and the worktree path.
     - The PR link.
     - Each validation command and its result, and the final CI status.
-    - The **manual test plan**: numbered steps a developer follows to check each acceptance criterion by hand, with the expected result of each step. Give every command ready to paste, with the issue number filled in and run from the main checkout's root:
-      - Step 1 is always `./test_issue.sh $ARGUMENTS`. It starts the worktree's compose stack and the studio dev server (http://localhost:5173, api on :8080), stopping any stack that collides with it. Don't tell the developer to run `make up` or `make run-studio` themselves.
-      - Middle steps are the checks themselves, including any cli commands (run from the worktree, e.g. `cd <worktree path> && go run ./services/cli/cmd ...`).
-      - The last step is always `./cleanup_test.sh`.
+    - The **manual test plan**: numbered steps a developer follows to check each acceptance criterion by hand, with the expected result of each step. Every command runs from the worktree's root and is ready to paste, with the issue number filled in:
+      - Step 1 is always `./run_local.sh`. It starts the worktree's compose stack and the studio dev server (http://localhost:5173, api on :8080), stopping any stack that collides with it, and prints the command that starts the harwood0 emulator. Don't tell the developer to run `make up` or `make run-studio` themselves.
+      - Middle steps are the checks themselves, including any cli commands (e.g. `go run ./services/cli/cmd ...`) and emulator runs.
+      - The last step is always `./cleanup_local.sh`.
 
       Depart from this only when the scripts can't cover the change (e.g. it needs a different env, a service the scripts don't start, or no running stack at all). Then say why, and give the exact commands to use instead and to tear them down.
-
-    Then offer to write the test plan to a file.
+    - An offer to write the test plan to a file.
+    - Last, on its own line so it isn't lost above: `cd <worktree path>`.
 
 ## Abandoning
 

@@ -124,7 +124,7 @@ sequenceDiagram
     loop every DEVICEMGR_SWEEP_INTERVAL, after a startup grace of DEVICEMGR_OFFLINE_AFTER
         DM->>DB: set online = false where last_seen_at < now() - DEVICEMGR_OFFLINE_AFTER
     end
-    U->>API: GET /devices (studio polls every 15 s)
+    U->>API: GET /devices (studio polls every VITE_DEVICES_REFRESH_MS)
     API->>DB: devicemgr.devices LEFT JOIN device_connectivity
     API-->>U: online, last_seen_at per device
 ```
@@ -136,4 +136,4 @@ sequenceDiagram
 - **Why the throttle can't hide a device coming back:** the window is shorter than the offline threshold, so a row the sweep marked offline is always older than the window, and the device's next message always writes. A device's heartbeat interval plus the throttle window must stay under `DEVICEMGR_OFFLINE_AFTER`, or a healthy idle device could be swept. The defaults are 30 s + 30 s < 90 s.
 - **Offline by sweep:** every `DEVICEMGR_SWEEP_INTERVAL`, devicemgr marks offline every online device whose `last_seen_at` is older than `DEVICEMGR_OFFLINE_AFTER`. Both the upsert and the sweep use the database clock, so clock skew between instances doesn't matter. Every instance sweeps, which is safe because the update is idempotent. The sweep also drops in-memory entries older than the threshold, which bounds the cache. Offline therefore lags a device's last message by `DEVICEMGR_OFFLINE_AFTER` to `DEVICEMGR_OFFLINE_AFTER + DEVICEMGR_SWEEP_INTERVAL`.
 - **Catch-up after an outage:** the sweep compares stored timestamps and keeps no state, so after a crash or outage its first run corrects whatever went stale. That first run waits `DEVICEMGR_OFFLINE_AFTER` after startup, so devices whose traffic was missed while devicemgr was down get a chance to report before they're marked offline. Devices that are truly gone go offline once the grace period ends.
-- **Freshness in studio:** the Devices page refetches the list every 15 s while it's open. The api has no push channel to studio, so polling is how a status change reaches the page.
+- **Freshness in studio:** the Devices page refetches the list every [`VITE_DEVICES_REFRESH_MS`](arch.md#configuration) while it's open: 15 s by default, and 5 s on the local dev server, so status changes show up quickly while testing. The api has no push channel to studio, so polling is how a status change reaches the page.

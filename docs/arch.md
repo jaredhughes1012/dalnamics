@@ -125,7 +125,7 @@ Error responses from every service share one shape, `{code, message}`. Clients s
 
 ### Configuration
 
-Services are configured from the environment through a typed `config` package (e.g. [api config](../services/api/internal/config/config.go)); there are no globals. Local defaults are in [`services/api/.env.example`](../services/api/.env.example) and [`services/devicemgr/.env.example`](../services/devicemgr/.env.example).
+Services are configured from the environment through a typed `config` package (e.g. [api config](../services/api/internal/config/config.go)); there are no globals. Studio reads `VITE_*` variables through [`src/lib/config.ts`](../studio/src/lib/config.ts). Local defaults are in [`services/api/.env.example`](../services/api/.env.example), [`services/devicemgr/.env.example`](../services/devicemgr/.env.example), and [`studio/.env.development`](../studio/.env.development).
 
 | Variable | Service | Purpose |
 |---|---|---|
@@ -142,6 +142,7 @@ Services are configured from the environment through a typed `config` package (e
 | `DEVICEMGR_OFFLINE_AFTER` | devicemgr | How long a device may stay silent before it is marked [offline](devices.md#connectivity) (Go duration, default `90s`) |
 | `DEVICEMGR_SWEEP_INTERVAL` | devicemgr | How often the offline sweep runs (Go duration, default `15s`, at most `DEVICEMGR_OFFLINE_AFTER`) |
 | `DALNAMICS_API_URL` / `--api-url` | cli | api base URL |
+| `VITE_DEVICES_REFRESH_MS` | studio | How often the Devices page refreshes [device status](devices.md#connectivity), in milliseconds (default `15000`; [`studio/.env.development`](../studio/.env.development) sets `5000` for the dev server). Read when studio is built or the dev server starts |
 | `DALNAMICS_STUDIO_URL` / `--studio-url` | cli | studio base URL, for browser sign-in |
 | `DALNAMICS_CREDENTIAL_STORE` | cli | Forces the credential backend (`keyring` or `file`) |
 | `DALNAMICS_CONFIG_DIR` | cli | Relocates the cli's credentials file and lock files |

@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { RegisterDeviceDialog } from '@/components/register-device-dialog'
+import { devicesRefreshMs } from '@/lib/config'
 import { useDevicesStore } from '@/stores/devices'
 
 export const Route = createFileRoute('/_authed/_app/devices')({
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/_authed/_app/devices')({
 const registeredAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
 /** How often the page refreshes the list, so each device's status stays current. */
-const REFRESH_MS = 15_000
+const REFRESH_MS = devicesRefreshMs()
 
 function Devices() {
   const { status, devices, error, load } = useDevicesStore()

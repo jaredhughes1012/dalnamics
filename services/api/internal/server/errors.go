@@ -7,6 +7,7 @@ import (
 
 	"dalnamics/services/api/internal/apigen"
 	"dalnamics/services/api/internal/auth"
+	"dalnamics/services/api/internal/devices"
 )
 
 // Error codes returned in apigen.Error.Code. Clients may switch on these.
@@ -23,7 +24,7 @@ const (
 )
 
 // handleError maps an error returned by a handler to an HTTP response. Domain
-// handlers return sentinel errors from the auth package rather than building
+// handlers return sentinel errors from the domain packages rather than building
 // error responses themselves.
 func (s *Server) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	status, body := errorResponse(err)
@@ -55,6 +56,8 @@ func errorResponse(err error) (int, apigen.Error) {
 		return http.StatusBadRequest, apigen.Error{Code: codeInvalidCode, Message: err.Error()}
 	case errors.Is(err, auth.ErrNotDevUser):
 		return http.StatusUnauthorized, apigen.Error{Code: codeNotDevUser, Message: err.Error()}
+	case errors.Is(err, devices.ErrNotFound):
+		return http.StatusNotFound, apigen.Error{Code: codeNotFound, Message: err.Error()}
 	case errors.Is(err, auth.ErrDevLoginDisabled):
 		return http.StatusNotFound, apigen.Error{Code: codeNotFound, Message: "not found"}
 	default:

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, CircleCheck, Copy } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/copy-button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormError } from '@/components/form-error'
 import { api, unwrap, type Device, type DeviceRegistrationCode } from '@/lib/api/client'
@@ -9,9 +10,6 @@ import { useDevicesStore } from '@/stores/devices'
 
 /** How often the dialog checks whether a device has redeemed the code. */
 const POLL_INTERVAL_MS = 2000
-
-/** How long the copy button shows that the code was copied. */
-const COPIED_MS = 2000
 
 type Phase =
   | { name: 'issuing' }
@@ -131,7 +129,7 @@ function RegisterDevice({ onDone }: { onDone: () => void }) {
           >
             {phase.code.code}
           </p>
-          <CopyButton text={phase.code.code} />
+          <CopyButton text={phase.code.code} label="Copy code" className="mx-auto" />
           <p role="timer" className="text-center text-sm text-muted-foreground">
             Expires in {formatRemaining(Date.parse(phase.code.expires_at) - now)}
           </p>
@@ -168,28 +166,4 @@ function RegisterDevice({ onDone }: { onDone: () => void }) {
         </>
       )
   }
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!copied) return
-    const reset = setTimeout(() => setCopied(false), COPIED_MS)
-    return () => clearTimeout(reset)
-  }, [copied])
-
-  function copy() {
-    navigator.clipboard.writeText(text).then(
-      () => setCopied(true),
-      () => {},
-    )
-  }
-
-  return (
-    <Button variant="outline" size="sm" className="mx-auto" onClick={copy}>
-      {copied ? <Check data-icon="inline-start" aria-hidden /> : <Copy data-icon="inline-start" aria-hidden />}
-      {copied ? 'Copied' : 'Copy code'}
-    </Button>
-  )
 }

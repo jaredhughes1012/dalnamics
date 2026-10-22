@@ -208,6 +208,37 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
 
+  /devices/{id}:
+    get:
+      operationId: getDevice
+      security:
+        - bearerAuth: []
+      summary: Get one of the authenticated user's devices
+      description: >-
+        Another user's device and an unknown ID both return 404, so the
+        response never reveals whether a device ID exists.
+      tags: [devices]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /devices/registration-codes:
     post:
       operationId: createDeviceRegistrationCode

@@ -145,6 +145,21 @@ func (mr *MockQuerierMockRecorder) GetActiveSession(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSession", reflect.TypeOf((*MockQuerier)(nil).GetActiveSession), ctx, id)
 }
 
+// GetDeviceForUser mocks base method.
+func (m *MockQuerier) GetDeviceForUser(ctx context.Context, arg devices.GetDeviceForUserParams) (devices.GetDeviceForUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDeviceForUser", ctx, arg)
+	ret0, _ := ret[0].(devices.GetDeviceForUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDeviceForUser indicates an expected call of GetDeviceForUser.
+func (mr *MockQuerierMockRecorder) GetDeviceForUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeviceForUser", reflect.TypeOf((*MockQuerier)(nil).GetDeviceForUser), ctx, arg)
+}
+
 // GetUserByEmail mocks base method.
 func (m *MockQuerier) GetUserByEmail(ctx context.Context, email string) (auth.User, error) {
 	m.ctrl.T.Helper()

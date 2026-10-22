@@ -150,3 +150,33 @@ func TestList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
+
+func TestGet(t *testing.T) {
+	s, q := newMockedService(t)
+	userID, id := uuid.New(), uuid.New()
+	seen := testNow.Add(time.Hour)
+	q.EXPECT().GetDeviceForUser(gomock.Any(), storedevices.GetDeviceForUserParams{ID: id, UserID: userID}).
+		Return(storedevices.GetDeviceForUserRow{ID: id, Type: "harwood0", Name: "bench", CreatedAt: testNow, Online: true, LastSeenAt: &seen}, nil)
+
+	got, err := s.Get(context.Background(), userID, id)
+	require.NoError(t, err)
+	assert.Equal(t, Device{ID: id, Type: "harwood0", Name: "bench", CreatedAt: testNow, Online: true, LastSeenAt: &seen}, got)
+}
+
+func TestGetNotFound(t *testing.T) {
+	s, q := newMockedService(t)
+	q.EXPECT().GetDeviceForUser(gomock.Any(), gomock.Any()).Return(storedevices.GetDeviceForUserRow{}, store.ErrNoRows)
+
+	_, err := s.Get(context.Background(), uuid.New(), uuid.New())
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestGetStoreError(t *testing.T) {
+	s, q := newMockedService(t)
+	boom := errors.New("boom")
+	q.EXPECT().GetDeviceForUser(gomock.Any(), gomock.Any()).Return(storedevices.GetDeviceForUserRow{}, boom)
+
+	_, err := s.Get(context.Background(), uuid.New(), uuid.New())
+	assert.ErrorIs(t, err, boom)
+	assert.NotErrorIs(t, err, ErrNotFound)
+}

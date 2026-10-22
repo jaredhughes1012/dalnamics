@@ -6,15 +6,18 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+
+	"dalnamics/services/cli/internal/client"
 )
 
 func newDevicesCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "devices",
-		Short: "Register and list your devices",
+		Short: "Register, list, and view your devices",
 	}
-	cmd.AddCommand(newDevicesRegisterCmd(e), newDevicesListCmd(e))
+	cmd.AddCommand(newDevicesRegisterCmd(e), newDevicesListCmd(e), newDevicesGetCmd(e))
 	return cmd
 }
 
@@ -80,11 +83,7 @@ func newDevicesListCmd(e *env) *cobra.Command {
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tNAME\tTYPE\tSTATUS\tREGISTERED")
 			for _, d := range devices {
-				status := "offline"
-				if d.Online {
-					status = "online"
-				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", d.Id, d.Name, d.Type, status, d.CreatedAt.Local().Format(time.DateTime))
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", d.Id, d.Name, d.Type, onlineStatus(d.Online), d.CreatedAt.Local().Format(time.DateTime))
 			}
 			return tw.Flush()
 		},
@@ -92,4 +91,57 @@ func newDevicesListCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print the raw JSON response")
 
 	return cmd
+}
+
+func newDevicesGetCmd(e *env) *cobra.Command {
+	var asJSON bool
+
+	cmd := &cobra.Command{
+		Use:   "get <id>",
+		Short: "Show one of your devices",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := uuid.Parse(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid device id %q: must be a UUID", args[0])
+			}
+			c, err := e.client()
+			if err != nil {
+				return err
+			}
+			d, err := c.GetDevice(cmd.Context(), id)
+			if client.IsNotFound(err) {
+				return fmt.Errorf("device %s not found", id)
+			}
+			if err != nil {
+				return notLoggedIn(err)
+			}
+			out := cmd.OutOrStdout()
+			if asJSON {
+				return json.NewEncoder(out).Encode(d)
+			}
+			lastSeen := "never"
+			if d.LastSeenAt != nil {
+				lastSeen = d.LastSeenAt.Local().Format(time.DateTime)
+			}
+			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+			fmt.Fprintf(tw, "ID\t%s\n", d.Id)
+			fmt.Fprintf(tw, "NAME\t%s\n", d.Name)
+			fmt.Fprintf(tw, "TYPE\t%s\n", d.Type)
+			fmt.Fprintf(tw, "STATUS\t%s\n", onlineStatus(d.Online))
+			fmt.Fprintf(tw, "LAST SEEN\t%s\n", lastSeen)
+			fmt.Fprintf(tw, "REGISTERED\t%s\n", d.CreatedAt.Local().Format(time.DateTime))
+			return tw.Flush()
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print the raw JSON response")
+
+	return cmd
+}
+
+func onlineStatus(online bool) string {
+	if online {
+		return "online"
+	}
+	return "offline"
 }

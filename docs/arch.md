@@ -141,7 +141,7 @@ Services are configured from the environment through a typed `config` package (e
 | `DEVICEMGR_MQTT_PASSWORD` | devicemgr | devicemgr's broker password as the `devicemgr` superuser; at least 32 bytes |
 | `DEVICEMGR_OFFLINE_AFTER` | devicemgr | How long a device stays [online](devices.md#connectivity) after a heartbeat (Go duration, default `90s`) |
 | `DALNAMICS_API_URL` / `--api-url` | cli | api base URL |
-| `VITE_DEVICES_REFRESH_MS` | studio | How long the Devices page waits after one refresh of [device status](devices.md#connectivity) before the next, in milliseconds (default `15000`; [`studio/.env.development`](../studio/.env.development) sets `5000` for the dev server). Read when studio is built or the dev server starts |
+| `VITE_DEVICES_REFRESH_MS` | studio | How long the Devices page and each device's page wait after one refresh of [device status](devices.md#connectivity) before the next, in milliseconds (default `15000`; [`studio/.env.development`](../studio/.env.development) sets `5000` for the dev server). Read when studio is built or the dev server starts |
 | `DALNAMICS_STUDIO_URL` / `--studio-url` | cli | studio base URL, for browser sign-in |
 | `DALNAMICS_CREDENTIAL_STORE` | cli | Forces the credential backend (`keyring` or `file`) |
 | `DALNAMICS_CONFIG_DIR` | cli | Relocates the cli's credentials file and lock files |

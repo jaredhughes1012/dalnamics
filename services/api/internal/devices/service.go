@@ -1,5 +1,5 @@
-// Package devices issues device registration codes and lists a user's
-// devices. devicemgr redeems the codes and owns the devices themselves.
+// Package devices issues device registration codes and lists and gets a
+// user's devices. devicemgr redeems the codes and owns the devices themselves.
 package devices
 
 import (
@@ -103,4 +103,17 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]Device, error) 
 		return nil, fmt.Errorf("list devices: %w", err)
 	}
 	return devices, nil
+}
+
+// Get returns userID's device with id, or ErrNotFound if userID has no such
+// device.
+func (s *Service) Get(ctx context.Context, userID, id uuid.UUID) (Device, error) {
+	d, err := s.q.GetDeviceForUser(ctx, storedevices.GetDeviceForUserParams{ID: id, UserID: userID})
+	if errors.Is(err, store.ErrNoRows) {
+		return Device{}, ErrNotFound
+	}
+	if err != nil {
+		return Device{}, fmt.Errorf("get device: %w", err)
+	}
+	return Device(d), nil
 }

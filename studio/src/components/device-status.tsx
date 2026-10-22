@@ -1,7 +1,6 @@
 import type { Device } from '@/lib/api/client'
+import { dateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-const lastSeen = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
 /**
  * A green (online) or gray (offline) dot, with when the device was last seen as
@@ -10,7 +9,7 @@ const lastSeen = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeS
  */
 export function DeviceStatus({ device, stale = false }: { device: Pick<Device, 'online' | 'last_seen_at'>; stale?: boolean }) {
   const label = stale ? 'Status unknown' : device.online ? 'Online' : 'Offline'
-  const seen = device.last_seen_at ? `Last seen ${lastSeen.format(new Date(device.last_seen_at))}` : 'Never connected'
+  const seen = device.last_seen_at ? `Last seen ${dateTime.format(new Date(device.last_seen_at))}` : 'Never connected'
   return (
     <span
       role="img"

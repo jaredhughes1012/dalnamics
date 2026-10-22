@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -223,6 +224,9 @@ type ServerInterface interface {
 	// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
 	// (POST /devices/registration-codes)
 	CreateDeviceRegistrationCode(w http.ResponseWriter, r *http.Request)
+	// GetDevice Get one of the authenticated user's devices
+	// (GET /devices/{id})
+	GetDevice(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetMe Get the authenticated user
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -377,6 +381,32 @@ func (siw *ServerInterfaceWrapper) CreateDeviceRegistrationCode(w http.ResponseW
 	handler.ServeHTTP(w, r)
 }
 
+// GetDevice operation middleware
+func (siw *ServerInterfaceWrapper) GetDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDevice(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
@@ -521,6 +551,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/cli/token", wrapper.ExchangeCliCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/devices", wrapper.ListDevices)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/devices/{id}", wrapper.GetDevice)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/devices/registration-codes", wrapper.CreateDeviceRegistrationCode)
 
 	return m
@@ -936,6 +967,70 @@ func (response CreateDeviceRegistrationCode401JSONResponse) VisitCreateDeviceReg
 	return err
 }
 
+type GetDeviceRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetDeviceResponseObject interface {
+	VisitGetDeviceResponse(w http.ResponseWriter) error
+}
+
+type GetDevice200JSONResponse Device
+
+func (response GetDevice200JSONResponse) VisitGetDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDevice400JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetDevice400JSONResponse) VisitGetDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDevice401JSONResponse Error
+
+func (response GetDevice401JSONResponse) VisitGetDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDevice404JSONResponse Error
+
+func (response GetDevice404JSONResponse) VisitGetDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -1003,6 +1098,9 @@ type StrictServerInterface interface {
 	// CreateDeviceRegistrationCode Issue a one-time code that registers a device to the authenticated user
 	// (POST /devices/registration-codes)
 	CreateDeviceRegistrationCode(ctx context.Context, request CreateDeviceRegistrationCodeRequestObject) (CreateDeviceRegistrationCodeResponseObject, error)
+	// GetDevice Get one of the authenticated user's devices
+	// (GET /devices/{id})
+	GetDevice(ctx context.Context, request GetDeviceRequestObject) (GetDeviceResponseObject, error)
 	// GetMe Get the authenticated user
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -1329,6 +1427,32 @@ func (sh *strictHandler) CreateDeviceRegistrationCode(w http.ResponseWriter, r *
 	}
 }
 
+// GetDevice operation middleware
+func (sh *strictHandler) GetDevice(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetDeviceRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDevice(ctx, request.(GetDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeviceResponseObject); ok {
+		if err := validResponse.VisitGetDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMe operation middleware
 func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	var request GetMeRequestObject
@@ -1358,38 +1482,40 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"NFm9hBoPh5mOeZZqsuPno+cjNr+Z/38A",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

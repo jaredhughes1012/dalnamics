@@ -43,4 +43,22 @@ describe('devices store', () => {
 
     expect(useDevicesStore.getState()).toMatchObject({ status: 'success', devices: [device(true)], error: undefined })
   })
+
+  it('stays in error while retrying after a failure, so the old list never passes for current', async () => {
+    const responses: ((r: Response) => void)[] = []
+    mockApi({ 'GET /devices': () => new Promise<Response>((resolve) => responses.push(resolve)) })
+    const { load } = useDevicesStore.getState()
+    const first = load()
+    await vi.waitFor(() => expect(responses).toHaveLength(1))
+    responses[0](Response.json({ code: 'internal', message: 'boom' }, { status: 500 }))
+    await first
+
+    const retry = load()
+    expect(useDevicesStore.getState().status).toBe('error')
+    await vi.waitFor(() => expect(responses).toHaveLength(2))
+    responses[1](Response.json([device(true)]))
+    await retry
+
+    expect(useDevicesStore.getState()).toMatchObject({ status: 'success', devices: [device(true)], error: undefined })
+  })
 })

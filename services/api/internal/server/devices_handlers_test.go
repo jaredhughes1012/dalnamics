@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,6 +129,71 @@ func TestGetDeviceUnauthenticated(t *testing.T) {
 	ts := newTestServer(t, "dev@dalnamics.local")
 
 	res := ts.do(t, http.MethodGet, "/devices/"+uuid.NewString(), "", "")
+
+	require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	assert.Equal(t, "unauthenticated", decode[apigen.Error](t, res).Code)
+}
+
+func TestUpdateDevice(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
+	token := ts.login(t, user)
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	id := uuid.New()
+	ts.q.EXPECT().InTx(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, fn func(store.Querier) error) error { return fn(ts.q) })
+	ts.q.EXPECT().RenameDevice(gomock.Any(), storedevices.RenameDeviceParams{Name: "Bench rover", ID: id, UserID: user.ID}).Return(id, nil)
+	ts.q.EXPECT().GetDeviceForUser(gomock.Any(), storedevices.GetDeviceForUserParams{ID: id, UserID: user.ID}).
+		Return(storedevices.GetDeviceForUserRow{ID: id, Type: "harwood0", Name: "Bench rover", CreatedAt: created}, nil)
+
+	res := ts.do(t, http.MethodPatch, "/devices/"+id.String(), `{"name":" Bench rover "}`, token)
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, apigen.Device{Id: id, Type: "harwood0", Name: "Bench rover", CreatedAt: created}, decode[apigen.Device](t, res))
+}
+
+func TestUpdateDeviceInvalidRequest(t *testing.T) {
+	for _, tc := range []struct{ desc, path, body string }{
+		{"blank name", "/devices/" + uuid.NewString(), `{"name":"   "}`},
+		{"missing name", "/devices/" + uuid.NewString(), `{}`},
+		{"missing body", "/devices/" + uuid.NewString(), ``},
+		{"name too long", "/devices/" + uuid.NewString(), `{"name":"` + strings.Repeat("a", 101) + `"}`},
+		{"non-UUID ID", "/devices/not-a-uuid", `{"name":"Bench rover"}`},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			ts := newTestServer(t, "dev@dalnamics.local")
+			token := ts.login(t, storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"})
+
+			// No store calls are expected: the request is rejected first.
+			res := ts.do(t, http.MethodPatch, tc.path, tc.body, token)
+
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			assert.Equal(t, "invalid_request", decode[apigen.Error](t, res).Code)
+		})
+	}
+}
+
+func TestUpdateDeviceNotFound(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+	user := storeauth.User{ID: uuid.New(), Email: "dev@dalnamics.local"}
+	token := ts.login(t, user)
+	ts.q.EXPECT().InTx(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, fn func(store.Querier) error) error { return fn(ts.q) })
+	// Another user's device and an unknown ID both match no rows for the caller.
+	ts.q.EXPECT().RenameDevice(gomock.Any(), gomock.Cond(func(p storedevices.RenameDeviceParams) bool {
+		return p.UserID == user.ID
+	})).Return(uuid.Nil, store.ErrNoRows)
+
+	res := ts.do(t, http.MethodPatch, "/devices/"+uuid.NewString(), `{"name":"Bench rover"}`, token)
+
+	require.Equal(t, http.StatusNotFound, res.StatusCode)
+	assert.Equal(t, apigen.Error{Code: "not_found", Message: "device not found"}, decode[apigen.Error](t, res))
+}
+
+func TestUpdateDeviceUnauthenticated(t *testing.T) {
+	ts := newTestServer(t, "dev@dalnamics.local")
+
+	res := ts.do(t, http.MethodPatch, "/devices/"+uuid.NewString(), `{"name":"Bench rover"}`, "")
 
 	require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	assert.Equal(t, "unauthenticated", decode[apigen.Error](t, res).Code)

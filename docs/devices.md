@@ -6,11 +6,11 @@ Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configur
 
 | Where | Code |
 |---|---|
-| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing and getting with connectivity), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql) |
+| api | [`internal/devices`](../services/api/internal/devices/) (codes, listing and getting with connectivity, renaming), [`server/devices_handlers.go`](../services/api/internal/server/devices_handlers.go), [`queries/devices.sql`](../services/api/internal/store/queries/devices.sql), [`0004_create_device_profiles.up.sql`](../services/api/internal/store/migrations/0004_create_device_profiles.up.sql) |
 | devicemgr | [`internal/devices`](../services/devicemgr/internal/devices/) (redemption, broker rules, [`presence.go`](../services/devicemgr/internal/devices/presence.go)), [`internal/mqtt`](../services/devicemgr/internal/mqtt/) (routing, handshake, [`presence.go`](../services/devicemgr/internal/mqtt/presence.go)), [`server/mqtt_auth_handlers.go`](../services/devicemgr/internal/server/mqtt_auth_handlers.go), [`queries/devices.sql`](../services/devicemgr/internal/store/queries/devices.sql) |
 | Broker | [`mosquitto/mosquitto.conf`](../services/devicemgr/mosquitto/mosquitto.conf) |
-| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx) (list), [`routes/_authed/_app/devices_.$deviceId.tsx`](../studio/src/routes/_authed/_app/devices_.$deviceId.tsx) (details), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`components/device-status.tsx`](../studio/src/components/device-status.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts), [`stores/device.ts`](../studio/src/stores/device.ts), [`lib/use-refresh.ts`](../studio/src/lib/use-refresh.ts) |
-| cli | [`commands/devices.go`](../services/cli/internal/commands/devices.go) (`devices register`, `list`, `get`) |
+| studio | [`routes/_authed/_app/devices.tsx`](../studio/src/routes/_authed/_app/devices.tsx) (list), [`routes/_authed/_app/devices_.$deviceId.tsx`](../studio/src/routes/_authed/_app/devices_.$deviceId.tsx) (details), [`components/register-device-dialog.tsx`](../studio/src/components/register-device-dialog.tsx), [`components/device-status.tsx`](../studio/src/components/device-status.tsx), [`components/device-name-editor.tsx`](../studio/src/components/device-name-editor.tsx), [`stores/devices.ts`](../studio/src/stores/devices.ts), [`stores/device.ts`](../studio/src/stores/device.ts), [`lib/use-refresh.ts`](../studio/src/lib/use-refresh.ts) |
+| cli | [`commands/devices.go`](../services/cli/internal/commands/devices.go) (`devices register`, `list`, `get`, `rename`) |
 | harwood0 | [`harwood0_api/platform.py`](../harwood0/api/src/harwood0_api/platform.py) |
 
 ## Device model
@@ -20,13 +20,13 @@ Related: [error codes](arch.md#error-codes) and [configuration](arch.md#configur
 | `id` | UUID assigned at registration. The device's MQTT username |
 | `user_id` | The user who issued the code the device redeemed |
 | `type` | Kind of device, `^[a-z0-9-]{1,64}$` (e.g. `harwood0`) |
-| `name` | 1–100 characters; defaults to `type` |
+| `name` | The name the device registered with: 1–100 characters, defaulting to `type`. Users never change it ([Renaming](#renaming)) |
 | `secret_hash` | SHA-256 of the device's secret, its MQTT password |
 | `registration_code_id` | The code the device redeemed; unique |
 | `online` | Whether the device has sent a heartbeat recently ([Connectivity](#connectivity)) |
 | `last_seen_at` | When devicemgr last recorded a heartbeat from the device; null if it never connected |
 
-Devices live in `devicemgr.devices`, and their connectivity in `devicemgr.device_connectivity`, one row per device from its first heartbeat. That row stores `last_seen_at` and `online_until`, and the api derives `online` as `online_until > now()`. Registration codes live in the api's `public.device_registration_codes`.
+Devices live in `devicemgr.devices`, and their connectivity in `devicemgr.device_connectivity`, one row per device from its first heartbeat. A user's name for a device lives in the api's `public.device_profiles.name`, and every read shows `coalesce(device_profiles.name, devices.name)` as the device's `name`. The name the device registered with is never shown once the user has named it. That row stores `last_seen_at` and `online_until`, and the api derives `online` as `online_until > now()`. Registration codes live in the api's `public.device_registration_codes`.
 
 ## Registration
 
@@ -110,6 +110,32 @@ Everything else is denied, including wildcard subscriptions that reach outside a
 Users see their devices through the api's `GET /devices` and `GET /devices/{id}` ([api spec](../services/api/openapi.yaml)), which return only the caller's devices. Studio's Devices page lists them, and clicking a device's row or its name opens its page at `/devices/<id>`, which shows the device's name with its [status dot](#connectivity), and a table of its other public fields: ID, type, last seen, and registration time. The cli has `devices list` and `devices get <id>`.
 
 A device ID is also the device's MQTT username, so the api never confirms which IDs exist. `GET /devices/{id}` matches on both the ID and the caller, and answers another user's device exactly as it answers an unknown ID: 404 `not_found` ([error codes](arch.md#error-codes)). Studio shows both as "Device not found" and stops refreshing the page, and `cli devices get` prints `device <id> not found`. Neither response includes the secret hash or the registration code ID.
+
+## Renaming
+
+A user renames a device from its page in studio, by clicking the pencil beside its name, or with `cli devices rename <id> <name>`. Both call `PATCH /devices/{id}` ([api spec](../services/api/openapi.yaml)), which returns the device with its new name. Studio then reloads its device list too, so the new name shows everywhere.
+
+```mermaid
+sequenceDiagram
+    participant U as User (studio or cli)
+    participant API as api
+    participant DB as Postgres
+    U->>API: PATCH /devices/{id} {name} (bearer)
+    API->>API: trim, check 1–100 characters
+    API->>DB: upsert device_profiles from devicemgr.devices WHERE id AND user_id
+    alt no row (unknown or another user's device)
+        API-->>U: 404 not_found
+    else
+        API->>DB: read device, overlaying device_profiles.name
+        API-->>U: the device
+    end
+```
+
+- **Name rules:** the same as at registration. The name is trimmed and must then be 1–100 characters, so a blank name gets 400 `invalid_request` rather than resetting the name. Names needn't be unique.
+- **Ownership in one statement:** the upsert inserts only from the caller's own row in `devicemgr.devices`, so another user's device or an unknown ID creates no profile and gets 404 `not_found`, as [`GET /devices/{id}`](#viewing-devices) does. The upsert and the read-back run in one transaction.
+- **The registered name stays in devicemgr:** `devicemgr.devices.name` is what the device reported when it registered. It stays there unchanged and queryable, and devicemgr is never asked to change it.
+- **The user's name lives in the api:** a display name is a user concern, not a device concern, so it lives in the api's schema as a [device profile](arch.md#data) and devicemgr never reads it. Profiles are created on the first rename, so registration doesn't have to create one.
+- **Editing in studio:** the pencil shows while the title is hovered or focused, and always on touch screens. Enter saves and Escape or clicking away cancels. The draft stays local, so a [refresh](#connectivity) during an edit doesn't disturb it.
 
 ## Connectivity
 

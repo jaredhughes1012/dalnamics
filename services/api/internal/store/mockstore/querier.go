@@ -219,6 +219,21 @@ func (mr *MockQuerierMockRecorder) ListDevicesByUser(ctx, userID any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDevicesByUser", reflect.TypeOf((*MockQuerier)(nil).ListDevicesByUser), ctx, userID)
 }
 
+// RenameDevice mocks base method.
+func (m *MockQuerier) RenameDevice(ctx context.Context, arg devices.RenameDeviceParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenameDevice", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenameDevice indicates an expected call of RenameDevice.
+func (mr *MockQuerierMockRecorder) RenameDevice(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameDevice", reflect.TypeOf((*MockQuerier)(nil).RenameDevice), ctx, arg)
+}
+
 // RevokeSession mocks base method.
 func (m *MockQuerier) RevokeSession(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()

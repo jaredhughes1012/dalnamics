@@ -38,10 +38,11 @@ func (q *Queries) DeleteExpiredDeviceRegistrationCodes(ctx context.Context) erro
 }
 
 const getDeviceForUser = `-- name: GetDeviceForUser :one
-SELECT d.id, d.type, d.name, d.created_at,
+SELECT d.id, d.type, coalesce(p.name, d.name)::text AS name, d.created_at,
        coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
 FROM devicemgr.devices d
 LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
+LEFT JOIN device_profiles p ON p.device_id = d.id
 WHERE d.id = $1 AND d.user_id = $2
 `
 
@@ -75,10 +76,11 @@ func (q *Queries) GetDeviceForUser(ctx context.Context, arg GetDeviceForUserPara
 }
 
 const listDevicesByUser = `-- name: ListDevicesByUser :many
-SELECT d.id, d.type, d.name, d.created_at,
+SELECT d.id, d.type, coalesce(p.name, d.name)::text AS name, d.created_at,
        coalesce(c.online_until > now(), false)::boolean AS online, c.last_seen_at
 FROM devicemgr.devices d
 LEFT JOIN devicemgr.device_connectivity c ON c.device_id = d.id
+LEFT JOIN device_profiles p ON p.device_id = d.id
 WHERE d.user_id = $1
 ORDER BY d.created_at DESC, d.id
 `
@@ -93,7 +95,8 @@ type ListDevicesByUserRow struct {
 }
 
 // Reads devicemgr's schema, which the api may read but never writes. A device
-// with no connectivity row has never connected, so it is offline.
+// with no connectivity row has never connected, so it is offline. The user's
+// name for a device, if any, overlays the one it registered with.
 func (q *Queries) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]ListDevicesByUserRow, error) {
 	rows, err := q.db.Query(ctx, listDevicesByUser, userID)
 	if err != nil {
@@ -119,6 +122,29 @@ func (q *Queries) ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]Li
 		return nil, err
 	}
 	return items, nil
+}
+
+const renameDevice = `-- name: RenameDevice :one
+INSERT INTO device_profiles (device_id, name)
+SELECT id, $1::text FROM devicemgr.devices WHERE id = $2 AND user_id = $3
+ON CONFLICT (device_id) DO UPDATE SET name = EXCLUDED.name
+RETURNING device_id
+`
+
+type RenameDeviceParams struct {
+	Name   string
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// Selecting the device by both id and user checks ownership in the same
+// statement: another user's device or an unknown ID inserts nothing and returns
+// no row.
+func (q *Queries) RenameDevice(ctx context.Context, arg RenameDeviceParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, renameDevice, arg.Name, arg.ID, arg.UserID)
+	var device_id uuid.UUID
+	err := row.Scan(&device_id)
+	return device_id, err
 }
 
 const seedDeviceRegistrationCode = `-- name: SeedDeviceRegistrationCode :execrows

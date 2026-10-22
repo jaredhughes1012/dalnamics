@@ -70,6 +70,28 @@ func fakeDevicesAPIWithCount(t *testing.T, code apigen.DeviceRegistrationCode, d
 		_ = json.NewEncoder(w).Encode(apigen.Error{Code: "not_found", Message: "device not found"})
 	})
 
+	// Renames like the api: the name is trimmed, and a blank one is rejected.
+	mux.HandleFunc("PATCH /devices/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r) {
+			return
+		}
+		var body apigen.DeviceUpdate
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(apigen.Error{Code: "invalid_request", Message: "name: is required"})
+			return
+		}
+		for _, d := range devices {
+			if d.Id.String() == r.PathValue("id") {
+				d.Name = strings.TrimSpace(body.Name)
+				_ = json.NewEncoder(w).Encode(d)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(apigen.Error{Code: "not_found", Message: "device not found"})
+	})
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/devices") {
 			deviceRequests.Add(1)
@@ -253,4 +275,74 @@ func TestDevicesGetOtherNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "device 6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11 not found")
 	assert.Contains(t, err.Error(), "404")
+}
+
+func TestDevicesRename(t *testing.T) {
+	useTempCredentials(t)
+	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{{Id: id, Type: "harwood0", Name: "harwood0"}})
+	devLogin(t, api.URL)
+
+	out, err := runRoot(t, "devices", "rename", id.String(), "Bench rover", "--api-url", api.URL)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed device 6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11 to \"Bench rover\".\n", out)
+}
+
+func TestDevicesRenameJSON(t *testing.T) {
+	useTempCredentials(t)
+	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{{Id: id, Type: "harwood0", Name: "harwood0"}})
+	devLogin(t, api.URL)
+
+	out, err := runRoot(t, "devices", "rename", id.String(), "Bench rover", "--json", "--api-url", api.URL)
+
+	require.NoError(t, err)
+	var d apigen.Device
+	require.NoError(t, json.Unmarshal([]byte(out), &d))
+	assert.Equal(t, apigen.Device{Id: id, Type: "harwood0", Name: "Bench rover"}, d)
+}
+
+func TestDevicesRenameNotFound(t *testing.T) {
+	useTempCredentials(t)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, nil)
+	devLogin(t, api.URL)
+
+	_, err := runRoot(t, "devices", "rename", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "Bench rover", "--api-url", api.URL)
+
+	assert.EqualError(t, err, "device 6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11 not found")
+}
+
+func TestDevicesRenameInvalidName(t *testing.T) {
+	useTempCredentials(t)
+	id := uuid.MustParse("6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11")
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, []apigen.Device{{Id: id, Type: "harwood0", Name: "harwood0"}})
+	devLogin(t, api.URL)
+
+	_, err := runRoot(t, "devices", "rename", id.String(), "   ", "--api-url", api.URL)
+
+	assert.EqualError(t, err, "name: is required", "prints the api's message")
+}
+
+func TestDevicesRenameUsageErrors(t *testing.T) {
+	for _, tc := range []struct {
+		desc string
+		args []string
+		err  string
+	}{
+		{"non-UUID ID", []string{"not-a-uuid", "Bench rover"}, `invalid device id "not-a-uuid": must be a UUID`},
+		{"missing name", []string{"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11"}, "accepts 2 arg(s), received 1"},
+		{"unquoted name", []string{"6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "Bench", "rover"}, "accepts 2 arg(s), received 3"},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			useTempCredentials(t)
+			api, requests := fakeDevicesAPIWithCount(t, apigen.DeviceRegistrationCode{}, nil)
+			devLogin(t, api.URL)
+
+			_, err := runRoot(t, append([]string{"devices", "rename"}, append(tc.args, "--api-url", api.URL)...)...)
+
+			assert.EqualError(t, err, tc.err)
+			assert.Zero(t, requests.Load(), "a usage error sends no request")
+		})
+	}
 }

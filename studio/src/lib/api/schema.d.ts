@@ -214,7 +214,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update one of the authenticated user's devices
+         * @description Sets the user's name for the device, which every read then shows in place of the name the device registered with. Another user's device and an unknown ID both return 404, and nothing is changed.
+         */
+        patch: operations["updateDevice"];
         trace?: never;
     };
     "/devices/registration-codes": {
@@ -333,6 +337,13 @@ export interface components {
              * @description When the device last sent a heartbeat; null if it never has
              */
             last_seen_at: string | null;
+        };
+        DeviceUpdate: {
+            /**
+             * @description The user's name for the device. It is trimmed, and must then be 1–100 characters, so a whitespace-only name is rejected.
+             * @example Bench rover
+             */
+            name: string;
         };
         DeviceRegistrationCode: {
             /**
@@ -607,6 +618,35 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The device */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    updateDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated device */
             200: {
                 headers: {
                     [name: string]: unknown;

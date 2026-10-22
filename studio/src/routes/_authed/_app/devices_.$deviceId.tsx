@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CopyButton } from '@/components/copy-button'
+import { DeviceNameEditor } from '@/components/device-name-editor'
 import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
 import { dateTime } from '@/lib/format'
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/_authed/_app/devices_/$deviceId')({
 
 function DeviceDetails() {
   const { deviceId } = Route.useParams()
-  const { status, id, device, notFound, error, load, reset } = useDeviceStore()
+  const { status, id, device, notFound, error, load, rename, reset } = useDeviceStore()
   // Until the store has switched to this ID, it may still hold another device.
   const current = id === deviceId
 
@@ -49,8 +50,8 @@ function DeviceDetails() {
           Devices
         </Link>
         {current && device && (
-          <header className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">{device.name}</h1>
+          <header className="group flex items-center gap-3">
+            <DeviceNameEditor name={device.name} onRename={rename} />
             <DeviceStatus device={device} stale={status === 'error'} />
           </header>
         )}

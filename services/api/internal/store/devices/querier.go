@@ -16,8 +16,13 @@ type Querier interface {
 	// Matches only the user's own devices, so another user's device looks unknown.
 	GetDeviceForUser(ctx context.Context, arg GetDeviceForUserParams) (GetDeviceForUserRow, error)
 	// Reads devicemgr's schema, which the api may read but never writes. A device
-	// with no connectivity row has never connected, so it is offline.
+	// with no connectivity row has never connected, so it is offline. The user's
+	// name for a device, if any, overlays the one it registered with.
 	ListDevicesByUser(ctx context.Context, userID uuid.UUID) ([]ListDevicesByUserRow, error)
+	// Selecting the device by both id and user checks ownership in the same
+	// statement: another user's device or an unknown ID inserts nothing and returns
+	// no row.
+	RenameDevice(ctx context.Context, arg RenameDeviceParams) (uuid.UUID, error)
 	// Gives the code a new id on every call, so a code already redeemed (whose old
 	// id devicemgr.devices holds) can be redeemed once more.
 	SeedDeviceRegistrationCode(ctx context.Context, arg SeedDeviceRegistrationCodeParams) (int64, error)

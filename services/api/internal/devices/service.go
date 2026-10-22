@@ -1,12 +1,15 @@
-// Package devices issues device registration codes and lists and gets a
-// user's devices. devicemgr redeems the codes and owns the devices themselves.
+// Package devices issues device registration codes, and lists, gets, and
+// renames a user's devices. devicemgr redeems the codes and owns the devices
+// themselves.
 package devices
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -18,6 +21,9 @@ const (
 	codeTTL = 10 * time.Minute
 	// codeAttempts bounds retries when a new code collides with a live one.
 	codeAttempts = 3
+	// maxNameLen matches the limit devicemgr applies to the name a device
+	// registers with.
+	maxNameLen = 100
 )
 
 // Config configures a Service.
@@ -116,4 +122,37 @@ func (s *Service) Get(ctx context.Context, userID, id uuid.UUID) (Device, error)
 		return Device{}, fmt.Errorf("get device: %w", err)
 	}
 	return Device(d), nil
+}
+
+// Rename sets userID's name for their device with id, and returns the device
+// with its new name. The name is trimmed and must then be 1–100 characters.
+// devicemgr's record keeps the name the device registered with. Rename returns
+// ErrNotFound if userID has no such device.
+func (s *Service) Rename(ctx context.Context, userID, id uuid.UUID, name string) (Device, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Device{}, &ValidationError{Field: "name", Message: "is required"}
+	}
+	if utf8.RuneCountInString(name) > maxNameLen {
+		return Device{}, &ValidationError{Field: "name", Message: fmt.Sprintf("must be at most %d characters", maxNameLen)}
+	}
+	var d Device
+	err := s.q.InTx(ctx, func(q store.Querier) error {
+		if _, err := q.RenameDevice(ctx, storedevices.RenameDeviceParams{Name: name, ID: id, UserID: userID}); err != nil {
+			if errors.Is(err, store.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("rename device: %w", err)
+		}
+		row, err := q.GetDeviceForUser(ctx, storedevices.GetDeviceForUserParams{ID: id, UserID: userID})
+		if err != nil {
+			return fmt.Errorf("get renamed device: %w", err)
+		}
+		d = Device(row)
+		return nil
+	})
+	if err != nil {
+		return Device{}, err
+	}
+	return d, nil
 }

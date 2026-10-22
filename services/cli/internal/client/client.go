@@ -156,6 +156,19 @@ func (c *Client) GetDevice(ctx context.Context, id uuid.UUID) (apigen.Device, er
 	return decoded(res.HTTPResponse, res.JSON200)
 }
 
+// RenameDevice sets the logged-in user's name for their device with id, and
+// returns the device.
+func (c *Client) RenameDevice(ctx context.Context, id uuid.UUID, name string) (apigen.Device, error) {
+	res, err := c.api.UpdateDeviceWithResponse(ctx, id, apigen.DeviceUpdate{Name: name})
+	if err != nil {
+		return apigen.Device{}, err
+	}
+	if err := checkStatus(res.HTTPResponse, res.Body); err != nil {
+		return apigen.Device{}, err
+	}
+	return decoded(res.HTTPResponse, res.JSON200)
+}
+
 // DevLogin starts a cli session for a dev user and stores its tokens.
 func (c *Client) DevLogin(ctx context.Context, email string) (apigen.User, error) {
 	client := apigen.Cli

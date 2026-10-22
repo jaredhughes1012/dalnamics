@@ -151,4 +151,39 @@ describe('device store', () => {
 
     expect(useDeviceStore.getState()).toMatchObject({ status: 'idle', id: undefined, device: undefined })
   })
+
+  it('shows the renamed device and drops a load started before the rename', async () => {
+    const responses: ((r: Response) => void)[] = []
+    const spy = mockApi({
+      [`GET /devices/${a}`]: () => new Promise<Response>((resolve) => responses.push(resolve)),
+      [`PATCH /devices/${a}`]: () => Response.json({ ...device(a), name: 'Bench rover' }),
+      'GET /devices': () => Response.json([]),
+    })
+    const { load, rename } = useDeviceStore.getState()
+    const first = load(a)
+    await vi.waitFor(() => expect(responses).toHaveLength(1))
+    responses[0](Response.json(device(a)))
+    await first
+
+    const stale = load(a)
+    await vi.waitFor(() => expect(responses).toHaveLength(2))
+    await rename('Bench rover')
+    expect(useDeviceStore.getState().device?.name).toBe('Bench rover')
+    responses[1](Response.json(device(a)))
+    await stale
+
+    expect(useDeviceStore.getState().device?.name, 'the old name doesn’t come back').toBe('Bench rover')
+    await vi.waitFor(() => expect(spy.mock.calls.some(([r]) => new URL((r as Request).url).pathname.endsWith('/devices'))).toBe(true))
+  })
+
+  it('rejects with the api’s error when the rename fails', async () => {
+    mockApi({
+      [`GET /devices/${a}`]: () => Response.json(device(a)),
+      [`PATCH /devices/${a}`]: () => apiError(400, 'invalid_request', 'name: is required'),
+    })
+    await useDeviceStore.getState().load(a)
+
+    await expect(useDeviceStore.getState().rename(' ')).rejects.toThrow('name: is required')
+    expect(useDeviceStore.getState().device).toEqual(device(a))
+  })
 })

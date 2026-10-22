@@ -66,7 +66,6 @@ function DeviceDetails() {
                   </span>
                 </Row>
                 <Row label="Type">{device.type}</Row>
-                <Row label="Status">{device.online ? 'Online' : 'Offline'}</Row>
                 <Row label="Last seen">{device.last_seen_at ? dateTime.format(new Date(device.last_seen_at)) : 'Never'}</Row>
                 <Row label="Registered">{dateTime.format(new Date(device.created_at))}</Row>
               </tbody>

@@ -45,7 +45,7 @@ describe('device details', () => {
     expect(dot).toHaveClass('bg-green-500')
     expect(field('ID')).toHaveTextContent(bench.id)
     expect(field('Type')).toHaveTextContent('harwood0')
-    expect(field('Status')).toHaveTextContent('Online')
+    expect(screen.queryByRole('rowheader', { name: 'Status' }), 'the dot shows status').not.toBeInTheDocument()
     expect(field('Last seen')).toHaveTextContent(dateTime.format(new Date(bench.last_seen_at!)))
     expect(field('Registered')).toHaveTextContent(dateTime.format(new Date(bench.created_at)))
   })
@@ -58,7 +58,6 @@ describe('device details', () => {
     const dot = await statusDot('bench-rover')
     expect(dot).toHaveAccessibleName('Offline')
     expect(dot).toHaveAttribute('title', 'Never connected')
-    expect(field('Status')).toHaveTextContent('Offline')
     expect(field('Last seen')).toHaveTextContent('Never')
   })
 

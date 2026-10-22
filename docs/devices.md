@@ -107,7 +107,7 @@ Everything else is denied, including wildcard subscriptions that reach outside a
 
 ## Viewing devices
 
-Users see their devices through the api's `GET /devices` and `GET /devices/{id}` ([api spec](../services/api/openapi.yaml)), which return only the caller's devices. Studio's Devices page lists them, and clicking a device's row or its name opens its page at `/devices/<id>`, which shows the device's name, its [status dot](#connectivity), and its public fields: ID, type, status, last seen, and registration time. The cli has `devices list` and `devices get <id>`.
+Users see their devices through the api's `GET /devices` and `GET /devices/{id}` ([api spec](../services/api/openapi.yaml)), which return only the caller's devices. Studio's Devices page lists them, and clicking a device's row or its name opens its page at `/devices/<id>`, which shows the device's name with its [status dot](#connectivity), and a table of its other public fields: ID, type, last seen, and registration time. The cli has `devices list` and `devices get <id>`.
 
 A device ID is also the device's MQTT username, so the api never confirms which IDs exist. `GET /devices/{id}` matches on both the ID and the caller, and answers another user's device exactly as it answers an unknown ID: 404 `not_found` ([error codes](arch.md#error-codes)). Studio shows both as "Device not found", and `cli devices get` as `device <id> not found`. Neither response includes the secret hash or the registration code ID.
 

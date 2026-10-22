@@ -101,7 +101,6 @@ test.describe('details', () => {
     const field = (label: string) => page.getByRole('row', { name: new RegExp(`^${label}`) }).getByRole('cell')
     await expect(field('ID')).toContainText(reply.device_id)
     await expect(field('Type')).toHaveText('harwood0')
-    await expect(field('Status')).toHaveText('Offline')
     await expect(field('Last seen')).toHaveText('Never')
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Devices' })).toHaveAttribute('aria-current', 'page')
 

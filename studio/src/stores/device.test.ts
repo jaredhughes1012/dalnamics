@@ -109,4 +109,46 @@ describe('device store', () => {
 
     expect(useDeviceStore.getState()).toMatchObject({ status: 'error', error: 'boom', device: device(a), notFound: false })
   })
+
+  it('stays in error while retrying after a failure', async () => {
+    let failing = false
+    const responses: ((r: Response) => void)[] = []
+    mockApi({
+      [`GET /devices/${a}`]: () =>
+        failing ? apiError(500, 'internal', 'boom') : new Promise<Response>((resolve) => responses.push(resolve)),
+    })
+    const { load } = useDeviceStore.getState()
+    const first = load(a)
+    await vi.waitFor(() => expect(responses).toHaveLength(1))
+    responses[0](Response.json(device(a)))
+    await first
+    failing = true
+    await load(a)
+    failing = false
+
+    const retry = load(a)
+    expect(useDeviceStore.getState()).toMatchObject({ status: 'error', device: device(a) })
+    await vi.waitFor(() => expect(responses).toHaveLength(2))
+    responses[1](Response.json(device(a, true)))
+    await retry
+
+    expect(useDeviceStore.getState()).toMatchObject({ status: 'success', device: device(a, true), error: undefined })
+  })
+
+  it('forgets the device on reset and drops responses still in flight', async () => {
+    const responses = deferredApi()
+    const { load, reset } = useDeviceStore.getState()
+    const first = load(a)
+    await vi.waitFor(() => expect(responses[a]).toHaveLength(1))
+    responses[a][0](Response.json(device(a)))
+    await first
+
+    const inFlight = load(a)
+    reset()
+    await vi.waitFor(() => expect(responses[a]).toHaveLength(2))
+    responses[a][1](Response.json(device(a, true)))
+    await inFlight
+
+    expect(useDeviceStore.getState()).toMatchObject({ status: 'idle', id: undefined, device: undefined })
+  })
 })

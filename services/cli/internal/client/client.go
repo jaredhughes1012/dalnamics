@@ -66,10 +66,11 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
 }
 
-// IsNotFound reports whether err is a 404 from the api.
+// IsNotFound reports whether err is the api's not_found error. A 404 without
+// that code, such as from a wrong --api-url, isn't one.
 func IsNotFound(err error) bool {
 	var apiErr *APIError
-	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound && apiErr.Code == "not_found"
 }
 
 // decoded returns v, or an error if a 2xx response had no JSON body.

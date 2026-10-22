@@ -209,7 +209,55 @@ describe('devices', () => {
     renderRoute('/devices')
 
     await screen.findByRole('heading', { name: 'Devices' })
+    expect(screen.getByRole('link', { name: 'Devices' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
+  })
+
+  it.each<[string, 'click' | 'auxclick', MouseEventInit]>([
+    ['a Cmd-click', 'click', { metaKey: true }],
+    ['a Ctrl-click', 'click', { ctrlKey: true }],
+    ['a middle click', 'auxclick', { button: 1 }],
+  ])('opens a device in a new tab on %s on its row', async (_, type, init) => {
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([bench]) })
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const { router } = renderRoute('/devices')
+    const cell = within(await screen.findByRole('row', { name: /bench-rover/ })).getByText('harwood0')
+
+    await act(async () => {
+      cell.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, ...init }))
+    })
+
+    expect(open).toHaveBeenCalledWith(`/devices/${bench.id}`, '_blank', 'noopener')
+    expect(router.state.location.pathname).toBe('/devices')
+  })
+
+  it('ignores a right click on a row', async () => {
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([bench]) })
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const { router } = renderRoute('/devices')
+    const cell = within(await screen.findByRole('row', { name: /bench-rover/ })).getByText('harwood0')
+
+    await act(async () => {
+      cell.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 2 }))
+    })
+
+    expect(open).not.toHaveBeenCalled()
+    expect(router.state.location.pathname).toBe('/devices')
+  })
+
+  it('stays on the list when a click ends a text selection in a row', async () => {
+    const user = userEvent.setup()
+    await signIn()
+    mockApi({ 'GET /devices': () => Response.json([bench]) })
+    const { router } = renderRoute('/devices')
+    const cell = within(await screen.findByRole('row', { name: /bench-rover/ })).getByText('harwood0')
+    vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'harwood' } as Selection)
+
+    await user.click(cell)
+
+    expect(router.state.location.pathname).toBe('/devices')
   })
 
   it('shows an empty state', async () => {

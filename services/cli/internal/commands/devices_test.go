@@ -241,3 +241,16 @@ func TestDevicesGetInvalidID(t *testing.T) {
 	assert.EqualError(t, err, `invalid device id "not-a-uuid": must be a UUID`)
 	assert.Zero(t, requests.Load(), "a bad id is rejected before any request")
 }
+
+func TestDevicesGetOtherNotFound(t *testing.T) {
+	useTempCredentials(t)
+	api := fakeDevicesAPI(t, apigen.DeviceRegistrationCode{}, nil)
+	devLogin(t, api.URL)
+
+	// Not an api: every path is a plain 404, as from a wrong --api-url.
+	_, err := runRoot(t, "devices", "get", "6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11", "--api-url", api.URL+"/not-the-api")
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "device 6f1c1f8e-2a8e-4f0c-9d55-2a8d0c1b7e11 not found")
+	assert.Contains(t, err.Error(), "404")
+}

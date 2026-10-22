@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { api, ApiError, unwrap, type Device } from '@/lib/api/client'
 import { errorMessage } from '@/lib/errors'
+import { newestWins, reloadStatus, type LoadStatus } from '@/lib/loads'
 
 type DeviceState = {
   /** 'error' while the latest load failed; device then still holds the last one loaded. */
-  status: 'idle' | 'loading' | 'success' | 'error'
+  status: LoadStatus
   /** The ID of the device being shown. */
   id?: string
   device?: Device
@@ -18,22 +19,22 @@ type DeviceState = {
    * after a newer one, or for an ID no longer shown, is dropped.
    */
   load: (id: string) => Promise<void>
+  /**
+   * Forgets the device, so a page opened later never shows it from before.
+   * Responses still in flight are dropped.
+   */
+  reset: () => void
 }
 
-// Requests started, and the newest one whose result is in the state.
-let started = 0
-let applied = 0
+const initial = { status: 'idle', id: undefined, device: undefined, notFound: false, error: undefined } as const
+
+const loads = newestWins()
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({
-  status: 'idle',
-  notFound: false,
+  ...initial,
   load: async (id) => {
-    const seq = ++started
-    set((s) =>
-      s.id === id
-        ? { status: s.status === 'success' ? 'success' : 'loading' }
-        : { id, status: 'loading', device: undefined, notFound: false, error: undefined },
-    )
+    const seq = loads.start()
+    set((s) => (s.id === id ? { status: reloadStatus(s.status) } : { ...initial, id, status: 'loading' }))
     let next: Partial<DeviceState>
     try {
       const device = unwrap(await api.GET('/devices/{id}', { params: { path: { id } } }))
@@ -44,8 +45,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
           ? { status: 'success', device: undefined, notFound: true, error: undefined }
           : { status: 'error', error: errorMessage(err) }
     }
-    if (seq < applied || get().id !== id) return
-    applied = seq
-    set(next)
+    if (get().id === id && loads.claim(seq)) set(next)
   },
+  reset: () => set(initial),
 }))

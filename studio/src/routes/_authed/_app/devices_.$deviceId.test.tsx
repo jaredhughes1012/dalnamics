@@ -93,6 +93,41 @@ describe('device details', () => {
     expect(router.state.location.pathname).toBe('/devices')
   })
 
+  it('stops refreshing once the device is known not to exist', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await signIn()
+    const spy = mockApi({ [`GET ${path}`]: () => apiError(404, 'not_found', 'device not found') })
+    renderRoute(path)
+    await screen.findByRole('heading', { name: 'Device not found' })
+    const loads = () => requestsOf(spy).filter((r) => r === `GET ${path}`).length
+    const initial = loads()
+
+    await advance(60_000)
+
+    expect(loads()).toBe(initial)
+  })
+
+  it('doesn’t show a device’s old status when the page is opened again', async () => {
+    await signIn()
+    let deferred = false
+    const pending: ((r: Response) => void)[] = []
+    mockApi({
+      [`GET ${path}`]: () =>
+        deferred ? new Promise<Response>((resolve) => pending.push(resolve)) : Response.json(bench),
+    })
+    const first = renderRoute(path)
+    expect(await statusDot('bench-rover')).toHaveAccessibleName('Online')
+    first.unmount()
+
+    deferred = true
+    renderRoute(path)
+    await vi.waitFor(() => expect(pending).toHaveLength(1))
+    expect(screen.queryByRole('heading', { name: 'bench-rover' }), 'nothing shows until the device loads').not.toBeInTheDocument()
+
+    await act(async () => pending[0](Response.json({ ...bench, online: false })))
+    expect(await statusDot('bench-rover')).toHaveAccessibleName('Offline')
+  })
+
   it('shows other errors', async () => {
     await signIn()
     mockApi({ [`GET ${path}`]: () => apiError(500, 'internal', 'internal server error') })

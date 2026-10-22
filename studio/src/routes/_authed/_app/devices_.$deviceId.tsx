@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CopyButton } from '@/components/copy-button'
 import { DeviceStatus } from '@/components/device-status'
 import { FormError } from '@/components/form-error'
+import { dateTime } from '@/lib/format'
 import { useRefresh } from '@/lib/use-refresh'
 import { useDeviceStore } from '@/stores/device'
 
@@ -12,16 +13,18 @@ export const Route = createFileRoute('/_authed/_app/devices_/$deviceId')({
   component: DeviceDetails,
 })
 
-const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-
 function DeviceDetails() {
   const { deviceId } = Route.useParams()
-  const { status, id, device, notFound, error, load } = useDeviceStore()
-  const refresh = useCallback(() => load(deviceId), [load, deviceId])
-  useRefresh(refresh)
-
+  const { status, id, device, notFound, error, load, reset } = useDeviceStore()
   // Until the store has switched to this ID, it may still hold another device.
   const current = id === deviceId
+
+  // A device that doesn't exist won't appear later, so stop asking.
+  const refresh = useCallback(() => load(deviceId), [load, deviceId])
+  useRefresh(refresh, { enabled: !(current && notFound) })
+  // Coming back to this page later starts fresh, rather than showing the
+  // device's old status as current until the first refresh returns.
+  useEffect(() => reset, [reset])
 
   if (current && notFound) {
     return (
